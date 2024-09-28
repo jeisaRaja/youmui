@@ -14,7 +14,7 @@ type Tabs struct {
 
 type TabItem struct {
 	name string
-	item string
+	item ContentModel
 }
 
 func NewTabs(tabList []TabItem) *Tabs {
@@ -72,3 +72,4 @@ func (t *Tabs) decrementSelection() {
 		t.selectTab = len(t.tabList) - 1
 	}
 }
+

@@ -1,9 +1,8 @@
 package ui
 
 import (
-	"fmt"
-
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type model struct {
@@ -24,14 +23,22 @@ func NewModel() *model {
 	var m model
 	var tabList []TabItem
 	for name, item := range tabItems {
-		tabList = append(tabList, TabItem{name: name, item: item})
+		tabList = append(tabList, TabItem{name: name, item: NewBaseView("header", item, "footer")})
 	}
 	m.tabs = NewTabs(tabList)
 	return &m
 }
 
 func (m *model) Init() tea.Cmd {
-	return nil
+	batchCmds := []tea.Cmd{
+		tea.EnterAltScreen,
+	}
+	for _, t := range m.tabs.tabList {
+		batchCmds = append(batchCmds, t.item.Init())
+	}
+	return tea.Batch(
+		batchCmds...,
+	)
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -56,30 +63,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	var output string
-	split := "╠═════════════════════════════╦══════════════════════════╣\n"
+	tabs := lipgloss.JoinVertical(
+		lipgloss.Left,
+		m.tabs.View(),
+	)
+	tabContent := lipgloss.JoinVertical(lipgloss.Left, m.ActiveTab().View())
+	return lipgloss.JoinHorizontal(lipgloss.Left, tabs, tabContent)
+}
 
-	// Header
-	output += "╔════════════════════════════════════════════════════════╗\n"
-	output += "║ YouTube Music TUI                                        ║\n"
-	output += split
-
-	// Sidebar for tabs
-	output += "║ Sidebar               ║ Main Area                    ║\n"
-	output += "║                       ║                              ║\n"
-
-	for i, tab := range m.tabs.tabList {
-		// Format the tab with highlighting for the selected tab
-		if i == m.tabs.selectTab {
-			output += fmt.Sprintf("║ [%s]                ║ %s   ║\n", tab.name, tab.item)
-		} else {
-			output += fmt.Sprintf("║ [%s]                ║                              ║\n", tab.name)
-		}
-	}
-	// Add footer and status
-	output += split
-	output += "║ Status Bar: Playing | Volume: 50%                     ║\n"
-	output += "╚════════════════════════════════════════════════════════╝\n"
-
-	return output
+func (m *model) ActiveTab() ContentModel {
+	item := m.tabs.CurrentTab().item
+	return item
 }
