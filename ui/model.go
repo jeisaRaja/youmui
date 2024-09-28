@@ -1,6 +1,7 @@
 package ui
 
 import (
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -44,20 +45,11 @@ func (m *model) Init() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "k": // Up key
-			if m.tabs.selectTab > 0 {
-				m.tabs.selectTab--
-			}
-		case "j": // Down key
-			if m.tabs.selectTab < len(m.tabs.tabList)-1 {
-				m.tabs.selectTab++
-			}
-		case "enter": // Select tab
-			// Handle selection if needed (currently does nothing)
-		case "ctrl+c", "q": // Quit
-			return m, tea.Quit
-		}
+		m.tabs.Update(msg)
+  switch msg.String(){
+    case "ctrl+c":
+    return m, tea.Quit
+  }
 	}
 	return m, nil
 }

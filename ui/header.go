@@ -14,5 +14,5 @@ func header() string {
 		MarginBottom(1).
 		PaddingLeft(7).
 		PaddingRight(7).
-		Render(fmt.Sprintf("Puffin %s", Version))
+		Render(fmt.Sprintf("Youmui %s", Version))
 }

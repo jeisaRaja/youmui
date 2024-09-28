@@ -1,6 +1,7 @@
 package ui
 
 import (
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -41,6 +42,7 @@ func (t *Tabs) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (t *Tabs) View() string {
 	renderedTabs := make([]string, 0)
+	renderedTabs = append(renderedTabs, header())
 
 	for i, tl := range t.tabList {
 		if i == t.selectTab {
@@ -72,4 +74,3 @@ func (t *Tabs) decrementSelection() {
 		t.selectTab = len(t.tabList) - 1
 	}
 }
-
