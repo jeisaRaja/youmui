@@ -1,9 +1,9 @@
 package ui
 
 import (
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/jeisaraja/youmui/ui/components"
 )
 
 type model struct {
@@ -13,7 +13,7 @@ type model struct {
 var (
 	tabItems = map[string]string{
 		"Home":     "Main Area",
-		"Browse":   "Browse Musics",
+		"Trending": "Browse Trending Musics",
 		"Playlist": "My Playlists",
 		"Search":   "Search Results",
 		"Library":  "My Library",
@@ -24,7 +24,12 @@ func NewModel() *model {
 	var m model
 	var tabList []TabItem
 	for name, item := range tabItems {
-		tabList = append(tabList, TabItem{name: name, item: NewBaseView("header", item, "footer")})
+		switch name {
+		case "Search":
+			tabList = append(tabList, TabItem{name: name, item: components.NewSearchContent("placeholder", 120, 50)})
+		default:
+			tabList = append(tabList, TabItem{name: name, item: components.NewBaseView("header", item, "footer")})
+		}
 	}
 	m.tabs = NewTabs(tabList)
 	return &m
@@ -43,15 +48,27 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		m.tabs.Update(msg)
-  switch msg.String(){
-    case "ctrl+c":
-    return m, tea.Quit
-  }
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.tabs.content_focus = false
+			return m, nil
+		case tea.KeyCtrlC:
+			return m, tea.Quit
+		case tea.KeyEnter:
+			m.tabs.content_focus = true
+			_, cmd = m.ActiveTab().Update(msg)
+		default:
+			if m.tabs.content_focus {
+				_, cmd = m.ActiveTab().Update(msg)
+			} else {
+				m.tabs.Update(msg)
+			}
+		}
 	}
-	return m, nil
+	return m, cmd
 }
 
 func (m *model) View() string {
@@ -63,7 +80,7 @@ func (m *model) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Left, tabs, tabContent)
 }
 
-func (m *model) ActiveTab() ContentModel {
+func (m *model) ActiveTab() components.ContentModel {
 	item := m.tabs.CurrentTab().item
 	return item
 }

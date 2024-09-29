@@ -1,9 +1,19 @@
-package ui
+package components
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+type content struct {
+	msg string
+	id  int
+	err error
+}
+
+type ContentModel interface {
+	tea.Model
+}
 
 func NewBaseView(header, data, footer string) *BaseView {
 	return &BaseView{

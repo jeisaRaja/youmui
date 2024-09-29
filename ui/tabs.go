@@ -1,21 +1,22 @@
 package ui
 
 import (
-
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/jeisaraja/youmui/ui/components"
 	"github.com/jeisaraja/youmui/ui/keys"
 )
 
 type Tabs struct {
 	tabList   []TabItem
 	selectTab int
+  content_focus bool
 }
 
 type TabItem struct {
 	name string
-	item ContentModel
+	item components.ContentModel
 }
 
 func NewTabs(tabList []TabItem) *Tabs {
