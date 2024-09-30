@@ -9,9 +9,9 @@ import (
 )
 
 type Tabs struct {
-	tabList   []TabItem
-	selectTab int
-  content_focus bool
+	tabList       []TabItem
+	selectTab     int
+	content_focus bool
 }
 
 type TabItem struct {
@@ -73,5 +73,13 @@ func (t *Tabs) decrementSelection() {
 		t.selectTab--
 	} else {
 		t.selectTab = len(t.tabList) - 1
+	}
+}
+
+func (t *Tabs) SetTab(name string) {
+	for i, tab := range t.tabList {
+		if tab.name == name {
+			t.selectTab = i
+		}
 	}
 }

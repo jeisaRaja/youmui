@@ -34,6 +34,7 @@ func (tm *TextInput) Init() tea.Cmd {
 
 func (tm *TextInput) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -45,7 +46,9 @@ func (tm *TextInput) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	tm.input, cmd = tm.input.Update(msg)
-	return tm, cmd
+	cmds = append(cmds, cmd)
+	cmds = append(cmds, textinput.Blink)
+	return tm, tea.Batch(cmds...)
 }
 
 func (tm *TextInput) View() string {

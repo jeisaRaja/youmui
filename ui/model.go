@@ -7,7 +7,8 @@ import (
 )
 
 type model struct {
-	tabs *Tabs
+	tabs   *Tabs
+	search *components.SearchContent
 }
 
 var (
@@ -26,7 +27,9 @@ func NewModel() *model {
 	for name, item := range tabItems {
 		switch name {
 		case "Search":
-			tabList = append(tabList, TabItem{name: name, item: components.NewSearchContent("placeholder", 120, 50)})
+			searchComp := components.NewSearchContent("placeholder", 120, 50)
+			tabList = append(tabList, TabItem{name: name, item: searchComp})
+			m.search = searchComp
 		default:
 			tabList = append(tabList, TabItem{name: name, item: components.NewBaseView("header", item, "footer")})
 		}
@@ -49,8 +52,17 @@ func (m *model) Init() tea.Cmd {
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		switch msg.String() {
+		case "s":
+			if m.tabs.content_focus == false {
+				m.tabs.SetTab("Search")
+				m.tabs.content_focus = true
+				return m, nil
+			}
+		}
 		switch msg.Type {
 		case tea.KeyEsc:
 			m.tabs.content_focus = false
@@ -60,15 +72,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			m.tabs.content_focus = true
 			_, cmd = m.ActiveTab().Update(msg)
+			cmds = append(cmds, cmd)
 		default:
 			if m.tabs.content_focus {
 				_, cmd = m.ActiveTab().Update(msg)
 			} else {
-				m.tabs.Update(msg)
+				_, cmd = m.tabs.Update(msg)
 			}
 		}
 	}
-	return m, cmd
+	return m, tea.Batch(cmds...)
 }
 
 func (m *model) View() string {

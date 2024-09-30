@@ -21,7 +21,7 @@ func NewSearchContent(placeholder string, charLimit, width int) *SearchContent {
 	}
 	return &SearchContent{
 		TextInput: NewTextInputView(placeholder, charLimit, width, callback),
-		Results:   []string{}, 
+		Results:   []string{},
 	}
 }
 
@@ -31,7 +31,10 @@ func (sc *SearchContent) Init() tea.Cmd {
 
 func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
 	model, cmd := sc.TextInput.Update(msg) // Get the updated model and command
+	cmds = append(cmds, cmd)
 
 	// Type assertion to convert the tea.Model back to *TextInput
 	if textInputModel, ok := model.(*TextInput); ok {
@@ -40,7 +43,7 @@ func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle the error or unexpected type case if needed
 	}
 
-	return sc, cmd
+	return sc, tea.Batch(cmds...)
 }
 
 func (sc *SearchContent) View() string {
