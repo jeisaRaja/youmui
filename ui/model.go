@@ -4,11 +4,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jeisaraja/youmui/ui/components"
+	"github.com/jeisaraja/youmui/ui/types"
 )
 
 type model struct {
 	tabs   *Tabs
 	search *components.SearchContent
+	level  types.FocusLevel
 }
 
 var (
@@ -35,6 +37,7 @@ func NewModel() *model {
 		}
 	}
 	m.tabs = NewTabs(tabList)
+	m.level = types.TabsFocus
 	return &m
 }
 
@@ -53,32 +56,49 @@ func (m *model) Init() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
+	var focusMsg types.FocusMsg
+	focusMsg.Level = m.level
+	focusMsg.Msg = msg
+
 	switch msg := msg.(type) {
+	case types.Mockres:
+		_, cmd = m.ActiveTab().Update(msg)
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "s":
 			if m.tabs.content_focus == false {
 				m.tabs.SetTab("Search")
-				m.tabs.content_focus = true
+				// m.tabs.content_focus = true
+				m.level = types.ContentFocus
 				return m, nil
 			}
 		}
 		switch msg.Type {
 		case tea.KeyEsc:
-			m.tabs.content_focus = false
+			m.level = m.DecrementFocus()
+			// m.tabs.content_focus = false
 			return m, nil
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyEnter:
-			m.tabs.content_focus = true
-			_, cmd = m.ActiveTab().Update(msg)
+			// m.tabs.content_focus = true
+			_, cmd = m.ActiveTab().Update(focusMsg)
 			cmds = append(cmds, cmd)
+			_, cmd = m.tabs.Update(focusMsg)
+			cmds = append(cmds, cmd)
+			m.level = m.IncrementFocus()
 		default:
-			if m.tabs.content_focus {
-				_, cmd = m.ActiveTab().Update(msg)
-			} else {
+			if m.level == types.TabsFocus {
 				_, cmd = m.tabs.Update(msg)
 			}
+			if m.level == types.ContentFocus {
+				_, cmd = m.ActiveTab().Update(msg)
+			}
+			// if m.tabs.content_focus {
+			// 	_, cmd = m.ActiveTab().Update(msg)
+			// } else {
+			// 	_, cmd = m.tabs.Update(msg)
+			// }
 		}
 	}
 	return m, tea.Batch(cmds...)
@@ -96,4 +116,20 @@ func (m *model) View() string {
 func (m *model) ActiveTab() components.ContentModel {
 	item := m.tabs.CurrentTab().item
 	return item
+}
+
+func (m *model) IncrementFocus() types.FocusLevel {
+	if m.level == types.TabsFocus {
+		return types.ContentFocus
+	} else {
+		return types.SubContentFocus
+	}
+}
+
+func (m *model) DecrementFocus() types.FocusLevel {
+	if m.level == types.SubContentFocus {
+		return types.ContentFocus
+	} else {
+		return types.TabsFocus
+	}
 }

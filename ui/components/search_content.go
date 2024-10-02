@@ -2,9 +2,9 @@ package components
 
 import (
 	"fmt"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jeisaraja/youmui/ui/types"
 )
 
 type SearchContent struct {
@@ -16,7 +16,7 @@ func NewSearchContent(placeholder string, charLimit, width int) *SearchContent {
 	callback := func(input string) tea.Cmd {
 		return func() tea.Msg {
 			results := []string{"Song1", "Song2", "Song3"}
-			return NewBaseView("results", strings.Join(results, ""), "end of result")
+			return types.Mockres(results)
 		}
 	}
 	return &SearchContent{
@@ -35,6 +35,16 @@ func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	model, cmd := sc.TextInput.Update(msg) // Get the updated model and command
 	cmds = append(cmds, cmd)
+
+	switch msg := msg.(type) {
+	case types.Mockres:
+		sc.Results = msg
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyEnter:
+			sc.TextInput.callback(sc.TextInput.input.Value())
+		}
+	}
 
 	// Type assertion to convert the tea.Model back to *TextInput
 	if textInputModel, ok := model.(*TextInput); ok {
