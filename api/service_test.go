@@ -44,7 +44,7 @@ func TestGetTrendingMusic(t *testing.T) {
 		},
 	}
 
-	res, err := getTrendingMusic(&mockClient)
+	res, err := GetTrendingMusic(&mockClient)
 	if err != nil {
 		t.Fatalf("err while get trending music: %s", err)
 	}
@@ -77,7 +77,7 @@ func TestSearchKeyword(t *testing.T) {
 		}, nil
 	}}
 
-	result, err := searchWithKeyword(&mockClient, "test")
+	result, err := SearchWithKeyword(&mockClient, "test")
 	if err != nil {
 		t.Fatalf("err while search with keyword: %s", err)
 	}

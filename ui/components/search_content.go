@@ -2,26 +2,39 @@ package components
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jeisaraja/youmui/api"
 	"github.com/jeisaraja/youmui/ui/types"
 )
 
 type SearchContent struct {
-	TextInput *TextInput
-	Results   []string // This will hold the search results
+	TextInput    *TextInput
+	Results      []string // This will hold the search results
+	SearchResult *api.SearchResult
 }
 
 func NewSearchContent(placeholder string, charLimit, width int) *SearchContent {
 	callback := func(input string) tea.Cmd {
 		return func() tea.Msg {
-			results := []string{"Song1", "Song2", "Song3"}
-			return types.Mockres(results)
+			file, err := tea.LogToFile("debug.log", "log:\n")
+			defer file.Close()
+			if err != nil {
+				panic("err while opening debug.log")
+			}
+			res, err := api.SearchWithKeyword(&http.Client{}, input)
+			if err != nil {
+				file.WriteString(strings.Join([]string{"\n", err.Error()}, ""))
+			}
+			return res
 		}
 	}
 	return &SearchContent{
-		TextInput: NewTextInputView(placeholder, charLimit, width, callback),
-		Results:   []string{},
+		TextInput:    NewTextInputView(placeholder, charLimit, width, callback),
+		Results:      []string{},
+		SearchResult: &api.SearchResult{},
 	}
 }
 
@@ -37,6 +50,8 @@ func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	switch msg := msg.(type) {
+	case *api.SearchResult:
+		sc.SearchResult = msg
 	case types.Mockres:
 		sc.Results = msg
 	case tea.KeyMsg:
@@ -46,21 +61,17 @@ func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Type assertion to convert the tea.Model back to *TextInput
 	if textInputModel, ok := model.(*TextInput); ok {
 		sc.TextInput = textInputModel // Assign it back to sc.TextInput
-	} else {
-		// Handle the error or unexpected type case if needed
 	}
-
 	return sc, tea.Batch(cmds...)
 }
 
 func (sc *SearchContent) View() string {
-	// Join the text input view and the results vertically
-	resultsView := ""
-	if len(sc.Results) > 0 {
-		resultsView = "\nSearch Results:\n" + fmt.Sprintf("%v", sc.Results)
+	resultsView := "result here"
+
+	if sc.SearchResult != nil && len(sc.SearchResult.Items) > 0 {
+		resultsView = "\nSearch Results:\n" + sc.SearchResult.Items[0].Snippet.Title
 	}
 
 	return fmt.Sprintf(

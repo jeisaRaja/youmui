@@ -3,6 +3,7 @@ package ui
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/jeisaraja/youmui/api"
 	"github.com/jeisaraja/youmui/ui/components"
 	"github.com/jeisaraja/youmui/ui/types"
 )
@@ -61,14 +62,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	focusMsg.Msg = msg
 
 	switch msg := msg.(type) {
+	case *api.SearchResult:
+		_, cmd = m.ActiveTab().Update(msg)
 	case types.Mockres:
 		_, cmd = m.ActiveTab().Update(msg)
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "s":
-			if m.tabs.content_focus == false {
+			if m.level == types.TabsFocus {
 				m.tabs.SetTab("Search")
-				// m.tabs.content_focus = true
 				m.level = types.ContentFocus
 				return m, nil
 			}
@@ -122,7 +124,7 @@ func (m *model) IncrementFocus() types.FocusLevel {
 	if m.level == types.TabsFocus {
 		return types.ContentFocus
 	} else {
-		return types.SubContentFocus
+		return types.ContentFocus
 	}
 }
 
