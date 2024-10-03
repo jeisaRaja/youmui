@@ -2,7 +2,6 @@ package components
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -12,7 +11,7 @@ import (
 
 type SearchContent struct {
 	TextInput    *TextInput
-	Results      []string // This will hold the search results
+	Results      []string
 	SearchResult *api.SearchResult
 }
 
@@ -24,7 +23,7 @@ func NewSearchContent(placeholder string, charLimit, width int) *SearchContent {
 			if err != nil {
 				panic("err while opening debug.log")
 			}
-			res, err := api.SearchWithKeyword(&http.Client{}, input)
+			res, err := api.SearchWithKeyword(api.NewClient(), input, 3)
 			if err != nil {
 				file.WriteString(strings.Join([]string{"\n", err.Error()}, ""))
 			}
@@ -46,7 +45,7 @@ func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	model, cmd := sc.TextInput.Update(msg) // Get the updated model and command
+	model, cmd := sc.TextInput.Update(msg)
 	cmds = append(cmds, cmd)
 
 	switch msg := msg.(type) {
@@ -62,16 +61,19 @@ func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if textInputModel, ok := model.(*TextInput); ok {
-		sc.TextInput = textInputModel // Assign it back to sc.TextInput
+		sc.TextInput = textInputModel
 	}
 	return sc, tea.Batch(cmds...)
 }
 
 func (sc *SearchContent) View() string {
-	resultsView := "result here"
+	resultsView := ""
 
 	if sc.SearchResult != nil && len(sc.SearchResult.Items) > 0 {
-		resultsView = "\nSearch Results:\n" + sc.SearchResult.Items[0].Snippet.Title
+		resultsView = "\nSearch Results:\n"
+		for _, item := range sc.SearchResult.Items {
+			resultsView += item.Snippet.Title + "\n" + item.Snippet.Url + "\n\n"
+		}
 	}
 
 	return fmt.Sprintf(

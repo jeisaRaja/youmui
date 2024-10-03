@@ -1,4 +1,4 @@
 .env
 set_env.sh
-Debug.log
+debug.log
 diff.txt

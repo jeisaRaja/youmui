@@ -33,6 +33,9 @@ func NewModel() *model {
 			searchComp := components.NewSearchContent("placeholder", 120, 50)
 			tabList = append(tabList, TabItem{name: name, item: searchComp})
 			m.search = searchComp
+		case "Trending":
+			trendingComp := components.NewTrendingContent()
+			tabList = append(tabList, TabItem{name: name, item: trendingComp})
 		default:
 			tabList = append(tabList, TabItem{name: name, item: components.NewBaseView("header", item, "footer")})
 		}

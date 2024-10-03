@@ -8,7 +8,7 @@ import (
 )
 
 type MockClient struct {
-	DoFunc func(req *http.Request) (*http.Response, error)
+	DoFunc  func(req *http.Request) (*http.Response, error)
 }
 
 func (m *MockClient) Do(req *http.Request) (*http.Response, error) {
@@ -77,11 +77,11 @@ func TestSearchKeyword(t *testing.T) {
 		}, nil
 	}}
 
-	result, err := SearchWithKeyword(&mockClient, "test")
+	result, err := SearchWithKeyword(&mockClient, "test", 10)
 	if err != nil {
 		t.Fatalf("err while search with keyword: %s", err)
 	}
-  if len(result.Items) != 1 || result.Items[0].ID.VideoID != "mockVideoId1" {
+	if len(result.Items) != 1 || result.Items[0].ID.VideoID != "mockVideoId1" {
 		t.Errorf("Expected videoId 'mockVideoId1', got %v", result.Items[0].ID.VideoID)
 	}
 }
