@@ -1,8 +1,9 @@
 package stream
 
 import (
+	"bytes"
 	"fmt"
-	"os"
+	"io"
 	"os/exec"
 	"time"
 
@@ -11,27 +12,52 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
+type bytesReadCloser struct {
+	*bytes.Reader
+}
+
+func (b *bytesReadCloser) Close() error {
+	return nil
+}
+
 func FetchAndPlayAudio(url string) error {
-	outputFile := "downloaded_audio.mp3"
-	convertedFile := "converted_audio.mp3"
-	cmd := exec.Command("yt-dlp", "-f", "bestaudio", "-o", outputFile, url)
+	cmd := exec.Command("yt-dlp", "-f", "bestaudio", "-o", "-", url)
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("Failed to run yt-dlp: %v", err)
-	}
-
-	convertCmd := exec.Command("ffmpeg", "-i", outputFile, "-acodec", "libmp3lame", "-b:a", "192k", convertedFile)
-	if err := convertCmd.Run(); err != nil {
-		return fmt.Errorf("failed to convert mp3: %v", err)
-	}
-
-	file, err := os.Open(convertedFile)
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("Opening audio file failed: %v", err)
+		return fmt.Errorf("failed to get stdout from yt-dlp: %v", err)
 	}
-	defer file.Close()
 
-	streamer, format, err := mp3.Decode(file)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to run yt-dlp: %v", err)
+	}
+
+	convertCmd := exec.Command("ffmpeg", "-i", "pipe:0", "-acodec", "libmp3lame", "-f", "mp3", "pipe:1")
+	convertCmd.Stdin = stdout
+	convertedStdout, err := convertCmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to get stdout from ffmpeg: %v", err)
+	}
+
+	if err := convertCmd.Start(); err != nil {
+		return fmt.Errorf("failed to run ffmpeg: %v", err)
+	}
+
+	var buf bytes.Buffer
+	go func() {
+		_, err := io.Copy(&buf, convertedStdout)
+		if err != nil {
+			fmt.Printf("failed to copy ffmpeg output: %v", err)
+		}
+	}()
+
+	if err := convertCmd.Wait(); err != nil {
+		return fmt.Errorf("ffmpeg command failed: %v", err)
+	}
+
+	reader := &bytesReadCloser{bytes.NewReader(buf.Bytes())}
+
+	streamer, format, err := mp3.Decode(reader)
 	if err != nil {
 		return fmt.Errorf("mp3.NewDecoder failed: %v", err)
 	}
@@ -48,9 +74,5 @@ func FetchAndPlayAudio(url string) error {
 
 	<-done
 
-	rmMp3FilesCmd := exec.Command("rm", outputFile, convertedFile)
-	if err := rmMp3FilesCmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove mp3 files: %v", err)
-	}
 	return nil
 }

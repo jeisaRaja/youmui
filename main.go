@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 
 	"github.com/jeisaraja/youmui/stream"
@@ -8,8 +9,9 @@ import (
 )
 
 func main() {
-	url := "https://www.youtube.com/watch?v=PtJ6yAGjsIs"
-	if err := stream.FetchAndPlayAudio(url); err != nil {
+  url := flag.String("s", "https://www.youtube.com/watch?v=PtJ6yAGjsIs", "youtube video url")
+  flag.Parse()
+	if err := stream.FetchAndPlayAudio(*url); err != nil {
 		log.Fatalf("Error fetching and playing audio: %v", err)
 	}
 	// ui.Start()
