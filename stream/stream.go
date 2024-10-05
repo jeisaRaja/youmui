@@ -1,7 +1,6 @@
 package stream
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os/exec"
@@ -12,15 +11,9 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
-type bytesReadCloser struct {
-	*bytes.Reader
-}
-
-func (b *bytesReadCloser) Close() error {
-	return nil
-}
-
 func FetchAndPlayAudio(url string) error {
+	start := time.Now()
+
 	cmd := exec.Command("yt-dlp", "-f", "bestaudio", "-o", "-", url)
 
 	stdout, err := cmd.StdoutPipe()
@@ -32,6 +25,9 @@ func FetchAndPlayAudio(url string) error {
 		return fmt.Errorf("failed to run yt-dlp: %v", err)
 	}
 
+	downloadTime := time.Since(start)
+	fmt.Printf("Time taken to start downloading: %v\n", downloadTime)
+
 	convertCmd := exec.Command("ffmpeg", "-i", "pipe:0", "-acodec", "libmp3lame", "-f", "mp3", "pipe:1")
 	convertCmd.Stdin = stdout
 	convertedStdout, err := convertCmd.StdoutPipe()
@@ -39,25 +35,26 @@ func FetchAndPlayAudio(url string) error {
 		return fmt.Errorf("failed to get stdout from ffmpeg: %v", err)
 	}
 
+	conversionTime := time.Since(start) - downloadTime
+	fmt.Printf("Time taken to start conversion: %v\n", conversionTime)
+
 	if err := convertCmd.Start(); err != nil {
 		return fmt.Errorf("failed to run ffmpeg: %v", err)
 	}
 
-	var buf bytes.Buffer
+	pipeReader, pipeWriter := io.Pipe()
+	defer pipeReader.Close()
+	defer pipeWriter.Close()
+
 	go func() {
-		_, err := io.Copy(&buf, convertedStdout)
+		_, err := io.Copy(pipeWriter, convertedStdout)
 		if err != nil {
 			fmt.Printf("failed to copy ffmpeg output: %v", err)
 		}
+		pipeWriter.Close()
 	}()
 
-	if err := convertCmd.Wait(); err != nil {
-		return fmt.Errorf("ffmpeg command failed: %v", err)
-	}
-
-	reader := &bytesReadCloser{bytes.NewReader(buf.Bytes())}
-
-	streamer, format, err := mp3.Decode(reader)
+	streamer, format, err := mp3.Decode(pipeReader)
 	if err != nil {
 		return fmt.Errorf("mp3.NewDecoder failed: %v", err)
 	}
@@ -70,9 +67,27 @@ func FetchAndPlayAudio(url string) error {
 	streamerWithCallback := beep.Callback(func() {
 		done <- true
 	})
+
 	speaker.Play(beep.Seq(streamer, streamerWithCallback))
+	fmt.Println("Playback has started.")
 
 	<-done
 
+	fmt.Println("Playback has finished.")
+
+	if err := cmd.Wait(); err != nil {
+		return fmt.Errorf("yt-dlp command failed: %v", err)
+	}
+	downloadFinish := time.Now()
+	fmt.Printf("Download finished in %v seconds.\n", downloadFinish.Sub(start).Seconds())
+
+	if err := convertCmd.Wait(); err != nil {
+		return fmt.Errorf("ffmpeg command failed: %v", err)
+	}
+
+	conversionFinish := time.Now()
+	fmt.Printf("Conversion finished in %v seconds.\n", conversionFinish.Sub(start).Seconds())
+
 	return nil
 }
+
