@@ -6,7 +6,13 @@ import (
 )
 
 type SongComponent struct {
-	api.Song
+	song api.Song
+}
+
+func NewSong(song api.Song) *SongComponent {
+	return &SongComponent{
+		song: song,
+	}
 }
 
 func (sc *SongComponent) Init() tea.Cmd {
@@ -18,6 +24,6 @@ func (sc *SongComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (sc *SongComponent) View() string {
-	title := sc.Title + "\n"
+	title := sc.song.Title + "\n"
 	return title
 }
