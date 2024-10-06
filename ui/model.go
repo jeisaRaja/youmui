@@ -67,8 +67,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case *api.SearchResult:
 		_, cmd = m.ActiveTab().Update(msg)
-	case types.Mockres:
-		_, cmd = m.ActiveTab().Update(msg)
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "s":
