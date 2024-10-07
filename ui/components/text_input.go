@@ -40,14 +40,12 @@ func (tm *TextInput) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case types.FocusMsg:
 		if msg.Level == types.ContentFocus {
-			return tm, tm.callback(tm.input.Value())
-		}
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
-			return tm, tea.Quit
+			if keyMsg, ok := msg.Msg.(tea.KeyMsg); ok && keyMsg.String() == "enter" {
+				return tm, tm.callback(tm.input.Value())
+			}
 		}
 	}
+
 	tm.input, cmd = tm.input.Update(msg)
 	cmds = append(cmds, cmd)
 	return tm, tea.Batch(cmds...)
