@@ -8,48 +8,38 @@ import (
 	"github.com/jeisaraja/youmui/ui/types"
 )
 
-type model struct {
-	tabs   *Tabs
-	search *components.SearchContent
-	level  types.FocusLevel
+type Tab struct {
+	name string
+	item components.ContentModel
 }
 
 var (
-	tabItems = map[string]string{
-		"Home":     "Main Area",
-		"Trending": "Browse Trending Musics",
-		"Playlist": "My Playlists",
-		"Search":   "Search Results",
-		"Library":  "My Library",
-	}
+	SongTab     = Tab{name: "Song", item: components.NewTrendingContent()}
+	PlaylistTab = Tab{name: "Playlist", item: components.NewBaseView("", "playlist", "")}
+	QueueTab    = Tab{name: "Queue", item: components.NewBaseView("", "queue", "")}
 )
 
+type model struct {
+	activeTab    Tab
+	level        types.FocusLevel
+	focusOnQueue bool
+	tabs         []Tab
+}
+
 func NewModel() *model {
-	var m model
-	var tabList []TabItem
-	for name, item := range tabItems {
-		switch name {
-		case "Search":
-			searchComp := components.NewSearchContent("placeholder", 120, 50)
-			tabList = append(tabList, TabItem{name: name, item: searchComp})
-			m.search = searchComp
-		case "Trending":
-			trendingComp := components.NewTrendingContent()
-			tabList = append(tabList, TabItem{name: name, item: trendingComp})
-		default:
-			tabList = append(tabList, TabItem{name: name, item: components.NewBaseView("header", item, "footer")})
-		}
+	tabs := []Tab{SongTab, PlaylistTab, QueueTab}
+	return &model{
+		activeTab: SongTab,
+		level:     types.TabsFocus,
+		tabs:      tabs,
 	}
-	m.tabs = NewTabs(tabList)
-	m.level = types.TabsFocus
-	return &m
 }
 
 func (m *model) Init() tea.Cmd {
 	batchCmds := []tea.Cmd{
 		tea.EnterAltScreen,
 	}
-	for _, t := range m.tabs.tabList {
+	for _, t := range m.tabs {
 		batchCmds = append(batchCmds, t.item.Init())
 	}
 	return tea.Batch(
@@ -71,7 +61,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "s":
 			if m.level == types.TabsFocus {
-				m.tabs.SetTab("Search")
 				m.level = types.ContentFocus
 				return m, nil
 			}
@@ -116,10 +105,6 @@ func (m *model) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Left, tabs, tabContent)
 }
 
-func (m *model) ActiveTab() components.ContentModel {
-	item := m.tabs.CurrentTab().item
-	return item
-}
 
 func (m *model) IncrementFocus() types.FocusLevel {
 	if m.level == types.TabsFocus {
