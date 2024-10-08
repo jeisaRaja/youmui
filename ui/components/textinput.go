@@ -10,21 +10,23 @@ import (
 
 type TextInput struct {
 	tea.Model
-	input    textinput.Model
-	callback InputCallback
+	input     textinput.Model
+	callback  InputCallback
+	searchFor string
 }
 
 type InputCallback func(input string) tea.Cmd
 
-func NewTextInputView(placeholder string, charLimit, width int, callback InputCallback) *TextInput {
+func NewTextInputView(searchFor string, charLimit, width int, callback InputCallback) *TextInput {
 	ti := textinput.New()
-	ti.Placeholder = placeholder
+	ti.Placeholder = "Search..."
 	ti.CharLimit = charLimit
 	ti.Width = width
 
 	return &TextInput{
-		input:    ti,
-		callback: callback,
+		input:     ti,
+		callback:  callback,
+		searchFor: searchFor,
 	}
 }
 
@@ -53,7 +55,8 @@ func (tm *TextInput) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (tm *TextInput) View() string {
 	return fmt.Sprintf(
-		"Search for songs\n\n%s\n\n%s",
+		"Search for %s\n\n%s\n\n%s",
+		tm.searchFor,
 		tm.input.View(),
 		"(esc to quit)",
 	) + "\n"

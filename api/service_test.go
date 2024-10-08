@@ -8,7 +8,7 @@ import (
 )
 
 type MockClient struct {
-	DoFunc  func(req *http.Request) (*http.Response, error)
+	DoFunc func(req *http.Request) (*http.Response, error)
 }
 
 func (m *MockClient) Do(req *http.Request) (*http.Response, error) {
@@ -48,7 +48,7 @@ func TestGetTrendingMusic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err while get trending music: %s", err)
 	}
-	if len(res.Items) == 0 {
+	if len(res) == 0 {
 		t.Fatal("res.Items have a length of 0")
 	}
 }
@@ -81,7 +81,7 @@ func TestSearchKeyword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err while search with keyword: %s", err)
 	}
-	if len(result.Items) != 1 || result.Items[0].ID.VideoID != "mockVideoId1" {
-		t.Errorf("Expected videoId 'mockVideoId1', got %v", result.Items[0].ID.VideoID)
+	if len(result) != 1 || result[0].ID != "mockVideoId1" {
+		t.Errorf("Expected videoId 'mockVideoId1', got %v", result[0].ID)
 	}
 }
