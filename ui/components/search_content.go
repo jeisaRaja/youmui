@@ -30,7 +30,7 @@ func NewSearchContent(placeholder string, charLimit, width int) *SearchContent {
 		}
 	}
 	return &SearchContent{
-		TextInput: NewTextInputView(placeholder, charLimit, width, callback),
+		TextInput: NewTextInputView(charLimit, width, callback),
 		Result:    NewResult(),
 		SearchBar: true,
 	}
@@ -53,8 +53,8 @@ func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "up", "down":
 			_, cmd := sc.Result.Update(msg)
 			cmds = append(cmds, cmd)
-    case "s":
-      sc.SearchBar = true
+		case "s":
+			sc.SearchBar = true
 		default:
 			sc.updateTextInput(msg, &cmds)
 		}

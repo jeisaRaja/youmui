@@ -22,4 +22,4 @@ var tabGroupStyle = lipgloss.NewStyle().
 	PaddingBottom(1).
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(theme.PrimaryForeground).
-	BorderBottom(true)
+	BorderBottom(true).Width(10)

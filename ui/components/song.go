@@ -33,9 +33,6 @@ func (sc *SongComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (sc *SongComponent) View() string {
-	if sc.isHovered {
-		return fmt.Sprintf("[Hovered] %s\n", sc.song.Title)
-	}
 	return fmt.Sprintf("%s\n", sc.song.Title)
 }
 

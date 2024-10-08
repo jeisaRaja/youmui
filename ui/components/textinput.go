@@ -5,33 +5,36 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/jeisaraja/youmui/ui/types"
 )
 
 type TextInput struct {
 	tea.Model
-	input     textinput.Model
+	Input     textinput.Model
 	callback  InputCallback
-	searchFor string
 }
 
 type InputCallback func(input string) tea.Cmd
 
-func NewTextInputView(searchFor string, charLimit, width int, callback InputCallback) *TextInput {
+func NewTextInputView(charLimit, width int, callback InputCallback) *TextInput {
+	file, err := tea.LogToFile("debug.log", "log:\n")
+	defer file.Close()
+	if err != nil {
+		panic("err while opening debug.log")
+	}
+  file.WriteString("writing this when init text input")
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
 	ti.CharLimit = charLimit
 	ti.Width = width
 
 	return &TextInput{
-		input:     ti,
+		Input:     ti,
 		callback:  callback,
-		searchFor: searchFor,
 	}
 }
 
 func (tm *TextInput) Init() tea.Cmd {
-	tm.input.Focus()
+	tm.Input.Focus()
 	return textinput.Blink
 }
 
@@ -39,25 +42,15 @@ func (tm *TextInput) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case types.FocusMsg:
-		if msg.Level == types.ContentFocus {
-			if keyMsg, ok := msg.Msg.(tea.KeyMsg); ok && keyMsg.String() == "enter" {
-				return tm, tm.callback(tm.input.Value())
-			}
-		}
-	}
-
-	tm.input, cmd = tm.input.Update(msg)
+	tm.Input, cmd = tm.Input.Update(msg)
 	cmds = append(cmds, cmd)
 	return tm, tea.Batch(cmds...)
 }
 
 func (tm *TextInput) View() string {
 	return fmt.Sprintf(
-		"Search for %s\n\n%s\n\n%s",
-		tm.searchFor,
-		tm.input.View(),
+		"Search for \n\n%s\n\n%s",
+		tm.Input.View(),
 		"(esc to quit)",
 	) + "\n"
 }
