@@ -3,11 +3,10 @@ package components
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jeisaraja/youmui/api"
-	"github.com/jeisaraja/youmui/stream"
 )
 
 type SongList struct {
-	Songs      []*SongComponent
+	Songs      []api.Song
 	hoverIndex int
 }
 
@@ -18,7 +17,7 @@ func NewSongList(songs []api.Song) *SongList {
 	}
 
 	return &SongList{
-		Songs: songComponents,
+		Songs: songs,
 	}
 }
 
@@ -30,13 +29,9 @@ func (sl *SongList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if (msg.String() == "down" || msg.String() == "j") && sl.hoverIndex < len(sl.Songs)-1 {
-			sl.Songs[sl.hoverIndex].SetHovered(false)
 			sl.hoverIndex++
-			sl.Songs[sl.hoverIndex].SetHovered(true)
 		} else if (msg.String() == "up" || msg.String() == "k") && sl.hoverIndex > 0 {
-			sl.Songs[sl.hoverIndex].SetHovered(false)
 			sl.hoverIndex--
-			sl.Songs[sl.hoverIndex].SetHovered(true)
 		}
 		switch msg.String() {
 		case "enter":
@@ -51,9 +46,9 @@ func (sl *SongList) View() string {
 	view := ""
 	for i, song := range sl.Songs {
 		if i == sl.hoverIndex {
-			view += ">> " + song.View() // Highlight hovered song
+			view += ">> " + song.Title + "\n"
 		} else {
-			view += song.View()
+			view += song.Title + "\n"
 		}
 	}
 	return view
@@ -64,17 +59,33 @@ func (sl *SongList) UpdateSongs(songs []api.Song) {
 	for _, song := range songs {
 		songComponents = append(songComponents, NewSong(song))
 	}
-	sl.Songs = songComponents
+	sl.Songs = songs
+}
+
+type SongEnqueuedMsg struct {
+	Song api.Song
+}
+
+type PlaySongMsg struct {
+	Song api.Song
+}
+
+func (sl *SongList) ForcePlaySong() tea.Cmd {
+	song := sl.Songs[sl.hoverIndex]
+
+	return func() tea.Msg {
+		return PlaySongMsg{Song: song}
+	}
 }
 
 func (sl *SongList) PlaySong() tea.Cmd {
-	songURL := sl.Songs[sl.hoverIndex].song.URL
+	song := sl.Songs[sl.hoverIndex]
 
 	return func() tea.Msg {
-		err := stream.FetchAndPlayAudio(songURL)
-		if err != nil {
-			return tea.Msg("Error playing audio")
-		}
-		return tea.Msg("Playback finished")
+		return SongEnqueuedMsg{Song: song}
 	}
+}
+
+func (s *SongList) GetSelectedSong() api.Song {
+	return s.Songs[s.hoverIndex]
 }

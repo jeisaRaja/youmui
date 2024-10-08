@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jeisaraja/youmui/api"
+	"github.com/jeisaraja/youmui/stream"
 	"github.com/jeisaraja/youmui/ui/components"
 )
 
@@ -29,7 +30,7 @@ const (
 var (
 	SongTab     Tab
 	PlaylistTab = Tab{name: "Playlist", item: components.NewBaseView("", "playlist", "")}
-	QueueTab    = Tab{name: "Queue", item: components.NewBaseView("", "queue", "")}
+	QueueTab    Tab
 
 	textStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
@@ -44,6 +45,8 @@ type model struct {
 	searchbar components.TextInput
 	loading   bool
 	spinner   spinner.Model
+	queue     *components.Queue
+	isPlaying bool
 }
 
 func NewModel(client *http.Client) *model {
@@ -51,6 +54,8 @@ func NewModel(client *http.Client) *model {
 	s.Spinner = spinner.Line
 	s.Style = spinnerStyle
 	SongTab = Tab{name: "Song", item: components.NewSongList([]api.Song{})}
+	queueItem := components.NewQueue()
+	QueueTab = Tab{name: "Queue", item: queueItem}
 	tabs := []Tab{SongTab, PlaylistTab, QueueTab}
 	return &model{
 		activeTab: SongTab,
@@ -60,6 +65,7 @@ func NewModel(client *http.Client) *model {
 		searchbar: *components.NewTextInputView(50, 50, nil),
 		loading:   false,
 		spinner:   s,
+		queue:     queueItem,
 	}
 }
 
@@ -88,6 +94,22 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case components.PlaySongMsg:
+		if songList, ok := m.activeTab.item.(*components.SongList); ok {
+			selectedSong := songList.GetSelectedSong()
+			m.PlaySelectedSong(selectedSong)
+		}
+	case PlaybackFinished:
+		if len(m.queue.Songs) > 0 {
+			cmds = append(cmds, m.PlayNextSong())
+		} else {
+			m.isPlaying = false
+		}
+	case components.SongEnqueuedMsg:
+		m.AddToQueue(msg.Song)
+		if len(m.queue.Songs) == 1 && !m.isPlaying {
+			cmds = append(cmds, m.PlayNextSong())
+		}
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -122,6 +144,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "enter":
+			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
+				selectedSong := songList.GetSelectedSong()
+				cmds = append(cmds, m.PlaySelectedSong(selectedSong))
+				m.queue.View()
+			}
+		case "a":
+			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
+				selectedSong := songList.GetSelectedSong()
+				m.queue.AddToQueue(selectedSong)
+
+				if len(m.queue.Songs) == 1 && !m.isPlaying {
+					cmds = append(cmds, m.PlayNextSong())
+				}
+				if m.ActiveTab().name == "Queue" {
+					m.ActiveTab().item.View()
+				}
+			}
 		case "s":
 			if m.state == IdleMode {
 				m.activeTab = SongTab
@@ -208,4 +248,45 @@ func (m *model) loadSongsAsync() tea.Cmd {
 		m.loading = false
 		return SongListMsg{Songs: songs}
 	})
+}
+
+type PlaybackFinished struct{}
+
+func (m *model) PlayNextSong() tea.Cmd {
+	if len(m.queue.Songs) == 0 {
+		return nil
+	}
+
+	nextSong := m.queue.RemoveFromQueue()
+  m.queue.SetPlayingSong(nextSong)
+
+	return func() tea.Msg {
+		m.isPlaying = true
+		err := stream.FetchAndPlayAudio(nextSong.URL)
+		if err != nil {
+			m.isPlaying = false
+			return tea.Msg("Error playing audio")
+		}
+
+		return PlaybackFinished{}
+	}
+}
+
+func (m *model) AddToQueue(song api.Song) tea.Cmd {
+	m.queue.AddToQueue(song)
+	return nil
+}
+
+func (m *model) StopPlayback() tea.Cmd {
+	m.isPlaying = false
+	return nil
+}
+
+func (m *model) PlaySelectedSong(selectedSong api.Song) tea.Cmd {
+	m.StopPlayback()
+
+	m.queue.Clear()
+	m.AddToQueue(selectedSong)
+
+	return m.PlayNextSong()
 }
