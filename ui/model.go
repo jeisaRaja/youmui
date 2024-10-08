@@ -3,13 +3,14 @@ package ui
 import (
 	"net/http"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jeisaraja/youmui/api"
 	"github.com/jeisaraja/youmui/ui/components"
 )
 
-type SearchResultMsg struct {
+type SongListMsg struct {
 	Songs []api.Song
 }
 
@@ -29,6 +30,10 @@ var (
 	SongTab     Tab
 	PlaylistTab = Tab{name: "Playlist", item: components.NewBaseView("", "playlist", "")}
 	QueueTab    = Tab{name: "Queue", item: components.NewBaseView("", "queue", "")}
+
+	textStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
+	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
+	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render
 )
 
 type model struct {
@@ -37,21 +42,24 @@ type model struct {
 	state     ModelState
 	client    *http.Client
 	searchbar components.TextInput
+	loading   bool
+	spinner   spinner.Model
 }
 
 func NewModel(client *http.Client) *model {
-	songs, err := api.GetTrendingMusic(client)
-	if err != nil {
-		panic(err)
-	}
-	SongTab = Tab{name: "Song", item: components.NewSongList(songs)}
+	s := spinner.New()
+	s.Spinner = spinner.Line
+	s.Style = spinnerStyle
+	SongTab = Tab{name: "Song", item: components.NewSongList([]api.Song{})}
 	tabs := []Tab{SongTab, PlaylistTab, QueueTab}
 	return &model{
 		activeTab: SongTab,
 		tabs:      tabs,
 		state:     IdleMode,
 		client:    client,
-		searchbar: *components.NewTextInputView(20, 20, nil),
+		searchbar: *components.NewTextInputView(50, 50, nil),
+		loading:   false,
+		spinner:   s,
 	}
 }
 
@@ -62,7 +70,9 @@ func (m *model) Init() tea.Cmd {
 	for _, t := range m.tabs {
 		batchCmds = append(batchCmds, t.item.Init())
 	}
+	batchCmds = append(batchCmds, m.loadSongsAsync())
 	batchCmds = append(batchCmds, m.searchbar.Init())
+	batchCmds = append(batchCmds, m.spinner.Tick)
 	return tea.Batch(
 		batchCmds...,
 	)
@@ -72,8 +82,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
+	if m.loading {
+		_, cmd := m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
 	switch msg := msg.(type) {
-	case SearchResultMsg:
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	case SongListMsg:
+		m.loading = false
 		if songList, ok := m.activeTab.item.(*components.SongList); ok {
 			songList.UpdateSongs(msg.Songs)
 		}
@@ -86,7 +106,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else if msg.String() == "enter" {
 				if m.ActiveTab().name == "Song" {
 					searchQuery := m.searchbar.Input.Value()
+					m.searchbar.Input.SetValue("")
 					cmd = SearchSongCallback(searchQuery)
+					m.loading = true
 					cmds = append(cmds, cmd)
 				}
 				m.state = IdleMode
@@ -123,7 +145,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "ctrl+c":
 			return m, tea.Quit
-		case "enter":
 		default:
 			if m.state == InputMode {
 				_, cmd := m.searchbar.Update(msg)
@@ -148,6 +169,9 @@ func (m *model) View() string {
 			m.ActiveTab().item.View(),
 		),
 	)
+	if m.loading {
+		tabContent += "\n\n" + m.spinner.View()
+	}
 	if m.state == InputMode {
 		tabContent += m.searchbar.View()
 	}
@@ -160,13 +184,28 @@ func (m *model) ActiveTab() Tab {
 
 func SearchSongCallback(input string) tea.Cmd {
 	return func() tea.Msg {
-		file, err := tea.LogToFile("debug.log", "log:\n")
-		defer file.Close()
-		if err != nil {
-			panic("err while opening debug.log")
-		}
-		file.WriteString("\nTHIS IS FROM INSIDE CALLBACK\n")
 		res, err := api.SearchWithKeyword(api.NewClient(), input, 5)
-		return SearchResultMsg{Songs: res}
+		if err != nil {
+			panic("error while calling the callback")
+		}
+		return SongListMsg{Songs: res}
 	}
+}
+
+func (m *model) loadSongsAsync() tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		m.loading = true
+		songs, err := api.GetTrendingMusic(m.client)
+		if err != nil {
+			m.loading = false
+			return SongListMsg{Songs: nil}
+		}
+
+		if songlist, ok := m.ActiveTab().item.(*components.SongList); ok {
+			songlist.UpdateSongs(songs)
+		}
+
+		m.loading = false
+		return SongListMsg{Songs: songs}
+	})
 }

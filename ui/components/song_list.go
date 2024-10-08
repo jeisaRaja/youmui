@@ -3,6 +3,7 @@ package components
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jeisaraja/youmui/api"
+	"github.com/jeisaraja/youmui/stream"
 )
 
 type SongList struct {
@@ -37,6 +38,10 @@ func (sl *SongList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			sl.hoverIndex--
 			sl.Songs[sl.hoverIndex].SetHovered(true)
 		}
+		switch msg.String() {
+		case "enter":
+			return sl, sl.PlaySong()
+		}
 	}
 
 	return sl, nil
@@ -60,4 +65,16 @@ func (sl *SongList) UpdateSongs(songs []api.Song) {
 		songComponents = append(songComponents, NewSong(song))
 	}
 	sl.Songs = songComponents
+}
+
+func (sl *SongList) PlaySong() tea.Cmd {
+	songURL := sl.Songs[sl.hoverIndex].song.URL
+
+	return func() tea.Msg {
+		err := stream.FetchAndPlayAudio(songURL)
+		if err != nil {
+			return tea.Msg("Error playing audio")
+		}
+		return tea.Msg("Playback finished")
+	}
 }
