@@ -1,10 +1,9 @@
 package components
 
 import (
-	"fmt"
-
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type TextInput struct {
@@ -16,12 +15,7 @@ type TextInput struct {
 type InputCallback func(input string) tea.Cmd
 
 func NewTextInputView(charLimit, width int, callback InputCallback) *TextInput {
-	file, err := tea.LogToFile("debug.log", "log:\n")
-	defer file.Close()
-	if err != nil {
-		panic("err while opening debug.log")
-	}
-	file.WriteString("writing this when init text input")
+
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
 	ti.CharLimit = charLimit
@@ -48,8 +42,5 @@ func (tm *TextInput) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (tm *TextInput) View() string {
-	return fmt.Sprintf(
-		"Search for \n\n%s\n\n",
-		tm.Input.View(),
-	) + "\n"
+	return lipgloss.JoinVertical(lipgloss.Left, tm.Input.View())
 }

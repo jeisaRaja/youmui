@@ -47,6 +47,8 @@ type model struct {
 	spinner   spinner.Model
 	queue     *components.Queue
 	isPlaying bool
+	height    int
+	width     int
 }
 
 func NewModel(client *http.Client) *model {
@@ -94,6 +96,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Height
+		m.height = msg.Height
 	case components.PlaySongMsg:
 		if songList, ok := m.activeTab.item.(*components.SongList); ok {
 			selectedSong := songList.GetSelectedSong()
@@ -203,19 +208,27 @@ func (m *model) View() string {
 	contentPaddingStyle := lipgloss.NewStyle().
 		PaddingLeft(4)
 
-	tabContent := contentPaddingStyle.Render(
+	tabContent := contentPaddingStyle.Width(80).Render(
 		lipgloss.JoinVertical(
 			lipgloss.Left,
 			m.ActiveTab().item.View(),
 		),
 	)
+
+	if m.state == InputMode {
+		searchBar := lipgloss.NewStyle().
+			Width(80).
+			PaddingLeft(4).
+			Render(m.searchbar.View())
+		tabContent += "\n\n    Search For " + m.ActiveTab().name + "\n\n" + searchBar
+	}
+
 	if m.loading {
 		tabContent += "\n\n" + m.spinner.View()
 	}
-	if m.state == InputMode {
-		tabContent += m.searchbar.View()
-	}
-	return lipgloss.JoinHorizontal(lipgloss.Left, tabs, tabContent)
+
+	queueStyled := queueTabStyle.Height(m.height).Render(m.queue.View())
+	return lipgloss.JoinHorizontal(lipgloss.Left, tabs, tabContent, queueStyled)
 }
 
 func (m *model) ActiveTab() Tab {
@@ -224,9 +237,18 @@ func (m *model) ActiveTab() Tab {
 
 func SearchSongCallback(input string) tea.Cmd {
 	return func() tea.Msg {
+		file, err := tea.LogToFile("debug.log", "log:\n")
+		defer file.Close()
+		if err != nil {
+			panic("err while opening debug.log")
+		}
+		file.WriteString("Search API call with being called!\n")
 		res, err := api.SearchWithKeyword(api.NewClient(), input, 5)
 		if err != nil {
-			panic("error while calling the callback")
+			if err.Error() == "unexpected status code: 403" {
+        file.WriteString("using yt-dlp to search")
+				res, err = api.SearchWithKeywordWithoutApi(input)
+			}
 		}
 		return SongListMsg{Songs: res}
 	}
@@ -258,7 +280,7 @@ func (m *model) PlayNextSong() tea.Cmd {
 	}
 
 	nextSong := m.queue.RemoveFromQueue()
-  m.queue.SetPlayingSong(nextSong)
+	m.queue.SetPlayingSong(nextSong)
 
 	return func() tea.Msg {
 		m.isPlaying = true

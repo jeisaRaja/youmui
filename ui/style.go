@@ -1,6 +1,8 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+)
 
 var theme = ThemeNord()
 var tabStyle = lipgloss.NewStyle().
@@ -23,3 +25,16 @@ var tabGroupStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(theme.PrimaryForeground).
 	BorderBottom(true).Width(10)
+
+var queueTabStyle = lipgloss.NewStyle().
+	MarginLeft(3).
+	BorderLeft(true).
+	BorderStyle(lipgloss.NormalBorder()).
+	PaddingLeft(3).
+	Width(40)
+
+var tabContentStyled = lipgloss.NewStyle().
+	Width(40).
+	MarginRight(1).
+	BorderRight(true).
+	PaddingRight(1)

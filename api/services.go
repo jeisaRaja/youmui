@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -203,4 +205,39 @@ func SearchWithKeyword(client HTTPClient, keyword string, limit int) ([]Song, er
 	}
 
 	return songs, nil
+}
+
+func SearchWithKeywordWithoutApi(keyword string) ([]Song, error) {
+	cmd := exec.Command("yt-dlp", fmt.Sprintf("ytsearch5:%s", keyword), "--print", "%(title)s %(webpage_url)s")
+
+	out, err := cmd.Output()
+	if err != nil {
+		panic("search with keyword without api failed")
+	}
+
+	stringOut := string(out)
+	lines := strings.Split(strings.TrimSpace(stringOut), "\n")
+	var songs []Song
+	for i := range lines {
+		var song Song
+		title, url := parseSong(lines[i])
+		song.Title = title
+		song.URL = url
+
+		songs = append(songs, song)
+	}
+
+	return songs, nil
+}
+
+func parseSong(line string) (title string, url string) {
+	lastSpace := strings.LastIndex(line, " ")
+	if lastSpace == 1 {
+		return line, ""
+	}
+
+	title = line[:lastSpace]
+	url = line[lastSpace+1:]
+
+	return title, url
 }
