@@ -158,6 +158,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.PlaySelectedSong(selectedSong))
 				m.queue.View()
 			}
+		case "-":
+			m.player.VolumeDown()
+			return m, nil
+		case "=":
+			m.player.VolumeUp()
+			return m, nil
 		case "n":
 			m.StopPlayback()
 			cmds = append(cmds, m.PlayNextSong())

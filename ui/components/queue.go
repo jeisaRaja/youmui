@@ -33,14 +33,14 @@ func (q *Queue) Init() tea.Cmd {
 	return nil
 }
 
-func (q *Queue) Update(tea.Msg) (tea.Model, tea.Cmd) {
+func (q *Queue) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return q, nil
 }
 
 func (q *Queue) View() string {
 	var view string
 	if q.PlayingSong != nil {
-		view += "Playing:\n\n" + q.PlayingSong.Title + "\n"
+		view += "\n\nPlaying:\n\n" + q.PlayingSong.Title + "\n"
 	}
 	view += "\n\nNext:\n\n"
 	for i, song := range q.Songs {

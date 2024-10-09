@@ -54,7 +54,7 @@ func (sl *SongList) View() string {
 			view += normalStyle.Render(song.Title) + "\n"
 		}
 	}
-	return view
+	return lipgloss.NewStyle().PaddingTop(2).Render(view)
 }
 
 func (sl *SongList) UpdateSongs(songs []api.Song) {

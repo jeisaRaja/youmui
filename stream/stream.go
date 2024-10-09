@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/faiface/beep"
+	"github.com/faiface/beep/effects"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 )
@@ -16,12 +17,18 @@ type Player struct {
 	streamer beep.StreamSeekCloser
 	format   beep.Format
 	isPaused bool
+	volume   *effects.Volume
 }
 
 func NewPlayer() *Player {
 	return &Player{
 		isPaused: false,
 		ctrl:     &beep.Ctrl{Paused: false},
+		volume: &effects.Volume{
+			Base:   2,
+			Volume: 0,
+			Silent: false,
+		},
 	}
 }
 
@@ -62,6 +69,7 @@ func (p *Player) FetchAndPlayAudio(url string) error {
 	}()
 
 	streamer, format, err := mp3.Decode(pipeReader)
+
 	p.ctrl.Streamer = streamer
 	p.streamer = streamer
 	p.format = format
@@ -76,7 +84,9 @@ func (p *Player) FetchAndPlayAudio(url string) error {
 		done <- true
 	})
 
-	speaker.Play(beep.Seq(p.ctrl, streamerWithCallback))
+	p.volume.Streamer = p.ctrl
+
+	speaker.Play(beep.Seq(p.volume, streamerWithCallback))
 	<-done
 
 	if err := cmd.Wait(); err != nil {
@@ -93,5 +103,17 @@ func (p *Player) FetchAndPlayAudio(url string) error {
 func (p *Player) PlayPause() {
 	speaker.Lock()
 	p.ctrl.Paused = !p.ctrl.Paused
+	speaker.Unlock()
+}
+
+func (p *Player) VolumeUp() {
+	speaker.Lock()
+	p.volume.Volume += 0.5
+	speaker.Unlock()
+}
+
+func (p *Player) VolumeDown() {
+	speaker.Lock()
+	p.volume.Volume -= 0.5
 	speaker.Unlock()
 }
