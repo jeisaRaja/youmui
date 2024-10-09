@@ -16,6 +16,7 @@ func NewQueue() *Queue {
 type Queue struct {
 	Songs       []api.Song
 	PlayingSong *api.Song
+	Select      int
 }
 
 func (q *Queue) AddToQueue(song api.Song) {
@@ -39,7 +40,7 @@ func (q *Queue) Update(tea.Msg) (tea.Model, tea.Cmd) {
 func (q *Queue) View() string {
 	var view string
 	if q.PlayingSong != nil {
-    view += "Playing:\n\n" + q.PlayingSong.Title + "\n"
+		view += "Playing:\n\n" + q.PlayingSong.Title + "\n"
 	}
 	view += "\n\nNext:\n\n"
 	for i, song := range q.Songs {

@@ -11,7 +11,21 @@ import (
 	"github.com/faiface/beep/speaker"
 )
 
-func FetchAndPlayAudio(url string) error {
+type Player struct {
+	ctrl     *beep.Ctrl
+	streamer beep.StreamSeekCloser
+	format   beep.Format
+	isPaused bool
+}
+
+func NewPlayer() *Player {
+	return &Player{
+		isPaused: false,
+		ctrl:     &beep.Ctrl{Paused: false},
+	}
+}
+
+func (p *Player) FetchAndPlayAudio(url string) error {
 
 	cmd := exec.Command("yt-dlp", "-f", "bestaudio", "-o", "-", url)
 
@@ -48,21 +62,21 @@ func FetchAndPlayAudio(url string) error {
 	}()
 
 	streamer, format, err := mp3.Decode(pipeReader)
+	p.ctrl.Streamer = streamer
+	p.streamer = streamer
+	p.format = format
 	if err != nil {
 		return fmt.Errorf("mp3.NewDecoder failed: %v", err)
 	}
 	defer streamer.Close()
 
 	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-
 	done := make(chan bool)
-
 	streamerWithCallback := beep.Callback(func() {
 		done <- true
 	})
 
-	speaker.Play(beep.Seq(streamer, streamerWithCallback))
-
+	speaker.Play(beep.Seq(p.ctrl, streamerWithCallback))
 	<-done
 
 	if err := cmd.Wait(); err != nil {
@@ -74,4 +88,10 @@ func FetchAndPlayAudio(url string) error {
 	}
 
 	return nil
+}
+
+func (p *Player) PlayPause() {
+	speaker.Lock()
+	p.ctrl.Paused = !p.ctrl.Paused
+	speaker.Unlock()
 }

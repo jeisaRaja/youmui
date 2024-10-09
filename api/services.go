@@ -208,7 +208,7 @@ func SearchWithKeyword(client HTTPClient, keyword string, limit int) ([]Song, er
 }
 
 func SearchWithKeywordWithoutApi(keyword string) ([]Song, error) {
-	cmd := exec.Command("yt-dlp", fmt.Sprintf("ytsearch5:%s", keyword), "--print", "%(title)s %(webpage_url)s")
+	cmd := exec.Command("yt-dlp", fmt.Sprintf("ytsearch5:%s", keyword), "--flat-playlist", "--skip-download", "--quiet", "--ignore-errors", "--print", "%(title)s %(webpage_url)s")
 
 	out, err := cmd.Output()
 	if err != nil {

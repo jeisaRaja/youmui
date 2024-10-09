@@ -2,6 +2,7 @@ package components
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/jeisaraja/youmui/api"
 )
 
@@ -43,12 +44,14 @@ func (sl *SongList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (sl *SongList) View() string {
+	normalStyle := lipgloss.NewStyle()
+	hoverStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
 	view := ""
 	for i, song := range sl.Songs {
 		if i == sl.hoverIndex {
-			view += ">> " + song.Title + "\n"
+			view += hoverStyle.Render(song.Title) + "\n"
 		} else {
-			view += song.Title + "\n"
+			view += normalStyle.Render(song.Title) + "\n"
 		}
 	}
 	return view

@@ -49,6 +49,7 @@ type model struct {
 	isPlaying bool
 	height    int
 	width     int
+	player    *stream.Player
 }
 
 func NewModel(client *http.Client) *model {
@@ -68,6 +69,7 @@ func NewModel(client *http.Client) *model {
 		loading:   false,
 		spinner:   s,
 		queue:     queueItem,
+		player:    stream.NewPlayer(),
 	}
 }
 
@@ -109,6 +111,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.PlayNextSong())
 		} else {
 			m.isPlaying = false
+			m.queue.PlayingSong = nil
 		}
 	case components.SongEnqueuedMsg:
 		m.AddToQueue(msg.Song)
@@ -155,6 +158,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, m.PlaySelectedSong(selectedSong))
 				m.queue.View()
 			}
+		case "n":
+			m.StopPlayback()
+			cmds = append(cmds, m.PlayNextSong())
+		case "x":
+			m.player.PlayPause()
+			return m, nil
 		case "a":
 			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
 				selectedSong := songList.GetSelectedSong()
@@ -204,7 +213,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) View() string {
-	tabs := tabGroupStyle.Render(lipgloss.JoinVertical(lipgloss.Left, m.activeTab.name))
+	tabs := activeTabStyle.Render(lipgloss.JoinVertical(lipgloss.Left, m.activeTab.name))
 	contentPaddingStyle := lipgloss.NewStyle().
 		PaddingLeft(4)
 
@@ -245,10 +254,8 @@ func SearchSongCallback(input string) tea.Cmd {
 		file.WriteString("Search API call with being called!\n")
 		res, err := api.SearchWithKeyword(api.NewClient(), input, 5)
 		if err != nil {
-			if err.Error() == "unexpected status code: 403" {
-        file.WriteString("using yt-dlp to search")
-				res, err = api.SearchWithKeywordWithoutApi(input)
-			}
+			file.WriteString("using yt-dlp to search")
+			res, err = api.SearchWithKeywordWithoutApi(input)
 		}
 		return SongListMsg{Songs: res}
 	}
@@ -284,7 +291,7 @@ func (m *model) PlayNextSong() tea.Cmd {
 
 	return func() tea.Msg {
 		m.isPlaying = true
-		err := stream.FetchAndPlayAudio(nextSong.URL)
+		err := m.player.FetchAndPlayAudio(nextSong.URL)
 		if err != nil {
 			m.isPlaying = false
 			return tea.Msg("Error playing audio")
