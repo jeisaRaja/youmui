@@ -6,13 +6,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jeisaraja/youmui/api"
-	"github.com/jeisaraja/youmui/ui/types"
 )
 
 type SearchContent struct {
-	TextInput    *TextInput
-	Results      []string
-	SearchResult *api.SearchResult
+	TextInput *TextInput
+	SearchBar bool
+	Result    *ResultComponent
 }
 
 func NewSearchContent(placeholder string, charLimit, width int) *SearchContent {
@@ -23,7 +22,7 @@ func NewSearchContent(placeholder string, charLimit, width int) *SearchContent {
 			if err != nil {
 				panic("err while opening debug.log")
 			}
-			res, err := api.SearchWithKeyword(api.NewClient(), input, 3)
+			res, err := api.SearchWithKeyword(api.NewClient(), input, 5)
 			if err != nil {
 				file.WriteString(strings.Join([]string{"\n", err.Error()}, ""))
 			}
@@ -31,9 +30,9 @@ func NewSearchContent(placeholder string, charLimit, width int) *SearchContent {
 		}
 	}
 	return &SearchContent{
-		TextInput:    NewTextInputView(placeholder, charLimit, width, callback),
-		Results:      []string{},
-		SearchResult: &api.SearchResult{},
+		TextInput: NewTextInputView(charLimit, width, callback),
+		Result:    NewResult(),
+		SearchBar: true,
 	}
 }
 
@@ -42,43 +41,56 @@ func (sc *SearchContent) Init() tea.Cmd {
 }
 
 func (sc *SearchContent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
-
-	model, cmd := sc.TextInput.Update(msg)
-	cmds = append(cmds, cmd)
 
 	switch msg := msg.(type) {
 	case *api.SearchResult:
-		sc.SearchResult = msg
-	case types.Mockres:
-		sc.Results = msg
+		sc.SearchBar = false
+		sc.Result.SetSearchResult(msg)
+
 	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyEnter:
-			sc.TextInput.callback(sc.TextInput.input.Value())
+		switch msg.String() {
+		case "up", "down":
+			_, cmd := sc.Result.Update(msg)
+			cmds = append(cmds, cmd)
+		case "s":
+			sc.SearchBar = true
+		default:
+			sc.updateTextInput(msg, &cmds)
 		}
+
+	default:
+		sc.updateTextInput(msg, &cmds)
 	}
 
-	if textInputModel, ok := model.(*TextInput); ok {
-		sc.TextInput = textInputModel
-	}
 	return sc, tea.Batch(cmds...)
 }
 
-func (sc *SearchContent) View() string {
-	resultsView := ""
-
-	if sc.SearchResult != nil && len(sc.SearchResult.Items) > 0 {
-		resultsView = "\nSearch Results:\n"
-		for _, item := range sc.SearchResult.Items {
-			resultsView += item.Snippet.Title + "\n" + item.Snippet.Url + "\n\n"
+func (sc *SearchContent) updateTextInput(msg tea.Msg, cmds *[]tea.Cmd) {
+	if sc.SearchBar {
+		model, cmd := sc.TextInput.Update(msg)
+		*cmds = append(*cmds, cmd)
+		if textInputModel, ok := model.(*TextInput); ok {
+			sc.TextInput = textInputModel
 		}
+	}
+}
+
+func (sc *SearchContent) View() string {
+	var inputView string
+	if sc.SearchBar {
+		file, err := tea.LogToFile("debug.log", "log from search content view:\n")
+		defer file.Close()
+		if err != nil {
+			panic("err while opening debug.log")
+		}
+		file.WriteString(fmt.Sprintf("the sc.SearchBar is %v\n", sc.SearchBar))
+		inputView = sc.TextInput.View()
 	}
 
 	return fmt.Sprintf(
 		"%s\n%s\n\n",
-		sc.TextInput.View(),
-		resultsView,
+		inputView,
+		sc.Result.View(),
 	)
 }

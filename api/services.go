@@ -8,9 +8,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+type Song struct {
+	ID          string
+	Title       string
+	Description string
+	ChannelID   string
+	URL         string
+}
 
 var apikey = os.Getenv("YOUTUBE_API_KEY")
 
@@ -60,12 +70,6 @@ func NewClient() *Client {
 	return &client
 }
 
-type Song struct {
-	Title string
-	ID    string
-	URL   string
-}
-
 type TrendingMusicResponse struct {
 	Kind  string `json:"kind"`
 	Items []struct {
@@ -78,7 +82,7 @@ type TrendingMusicResponse struct {
 	} `json:"items"`
 }
 
-func GetTrendingMusic(client HTTPClient) (*TrendingMusicResponse, error) {
+func GetTrendingMusic(client HTTPClient) ([]Song, error) {
 	endpoint := fmt.Sprintf("https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&videoCategoryId=10&regionCode=US&key=%s", apikey)
 	if apiClient, ok := client.(*Client); ok {
 		endpoint = fmt.Sprintf("https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&videoCategoryId=10&regionCode=%s&key=%s", apiClient.Country, apikey)
@@ -108,7 +112,20 @@ func GetTrendingMusic(client HTTPClient) (*TrendingMusicResponse, error) {
 		return nil, fmt.Errorf("error unmarshalling the request body: %s", err)
 	}
 
-	return &trendingMusic, nil
+	var songs []Song
+	for _, item := range trendingMusic.Items {
+		url := "https://youtube.com/watch?v=" + item.ID
+		song := Song{
+			ID:          item.ID,
+			Title:       item.Snippet.Title,
+			Description: item.Snippet.Description,
+			ChannelID:   item.Snippet.ChannelId,
+			URL:         url,
+		}
+		songs = append(songs, song)
+	}
+
+	return songs, nil
 }
 
 type SearchResult struct {
@@ -126,7 +143,7 @@ type SearchResult struct {
 	} `json:"items"`
 }
 
-func SearchWithKeyword(client HTTPClient, keyword string, limit int) (*SearchResult, error) {
+func SearchWithKeyword(client HTTPClient, keyword string, limit int) ([]Song, error) {
 	keyword = url.QueryEscape(keyword)
 	endpoint := fmt.Sprintf("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=%d&q=%s&regionCode=US&type=video&videoCategoryId=10&key=%s", limit, keyword, apikey)
 
@@ -174,5 +191,53 @@ func SearchWithKeyword(client HTTPClient, keyword string, limit int) (*SearchRes
 		item.Snippet.Url = "https://youtube.com/watch?v=" + item.ID.VideoID
 	}
 
-	return &searchResult, nil
+	var songs []Song
+	for _, item := range searchResult.Items {
+		item.Snippet.Title = html.UnescapeString(item.Snippet.Title)
+
+		song := Song{
+			ID:          item.ID.VideoID,
+			Title:       item.Snippet.Title,
+			Description: item.Snippet.Description,
+			URL:         "https://youtube.com/watch?v=" + item.ID.VideoID,
+		}
+		songs = append(songs, song)
+	}
+
+	return songs, nil
+}
+
+func SearchWithKeywordWithoutApi(keyword string) ([]Song, error) {
+	cmd := exec.Command("yt-dlp", fmt.Sprintf("ytsearch5:%s", keyword), "--flat-playlist", "--skip-download", "--quiet", "--ignore-errors", "--print", "%(title)s %(webpage_url)s")
+
+	out, err := cmd.Output()
+	if err != nil {
+		panic("search with keyword without api failed")
+	}
+
+	stringOut := string(out)
+	lines := strings.Split(strings.TrimSpace(stringOut), "\n")
+	var songs []Song
+	for i := range lines {
+		var song Song
+		title, url := parseSong(lines[i])
+		song.Title = title
+		song.URL = url
+
+		songs = append(songs, song)
+	}
+
+	return songs, nil
+}
+
+func parseSong(line string) (title string, url string) {
+	lastSpace := strings.LastIndex(line, " ")
+	if lastSpace == 1 {
+		return line, ""
+	}
+
+	title = line[:lastSpace]
+	url = line[lastSpace+1:]
+
+	return title, url
 }

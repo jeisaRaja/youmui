@@ -2,13 +2,14 @@ package api
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"testing"
 )
 
 type MockClient struct {
-	DoFunc  func(req *http.Request) (*http.Response, error)
+	DoFunc func(req *http.Request) (*http.Response, error)
 }
 
 func (m *MockClient) Do(req *http.Request) (*http.Response, error) {
@@ -48,7 +49,7 @@ func TestGetTrendingMusic(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err while get trending music: %s", err)
 	}
-	if len(res.Items) == 0 {
+	if len(res) == 0 {
 		t.Fatal("res.Items have a length of 0")
 	}
 }
@@ -81,7 +82,35 @@ func TestSearchKeyword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("err while search with keyword: %s", err)
 	}
-	if len(result.Items) != 1 || result.Items[0].ID.VideoID != "mockVideoId1" {
-		t.Errorf("Expected videoId 'mockVideoId1', got %v", result.Items[0].ID.VideoID)
+	if len(result) != 1 || result[0].ID != "mockVideoId1" {
+		t.Errorf("Expected videoId 'mockVideoId1', got %v", result[0].ID)
+	}
+}
+
+func TestSearchWithKeywordWithoutApi(t *testing.T) {
+	res, err := SearchWithKeywordWithoutApi("every summertime")
+  fmt.Println("the result:")
+	fmt.Println(res)
+	if len(res) != 5 {
+		t.Fatalf("length of songs not 5 but: %d", len(res))
+	}
+	if err != nil {
+		t.Fatalf("failed because an error occurs: %v", err)
+	}
+}
+
+func TestParseSong(t *testing.T) {
+	line := "Niki ride on children's car and stuck in the ground Vlad tows on the tractor https://www.youtube.com/watch?v=a7Oh4dKDDuU"
+	expectedTitle := "Niki ride on children's car and stuck in the ground Vlad tows on the tractor"
+	expectedUrl := "https://www.youtube.com/watch?v=a7Oh4dKDDuU"
+
+	title, url := parseSong(line)
+
+	if title != expectedTitle {
+		t.Fatalf("title is not the same as expected: %s, the title from parseSong: %s", expectedTitle, title)
+	}
+
+	if url != expectedUrl {
+		t.Fatalf("url is not the same as expected: %s, the url from parseSong: %s", expectedUrl, url)
 	}
 }
