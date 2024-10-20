@@ -44,8 +44,8 @@ func (sl *SongList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (sl *SongList) View() string {
-	normalStyle := lipgloss.NewStyle()
-	hoverStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
+	normalStyle := lipgloss.NewStyle().Width(70)
+	hoverStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75")).Width(70)
 	view := ""
 	for i, song := range sl.Songs {
 		if i == sl.hoverIndex {

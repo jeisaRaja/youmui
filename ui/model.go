@@ -169,6 +169,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.PlayNextSong())
 		case "x":
 			m.player.PlayPause()
+      m.queue.PlayPause()
 			return m, nil
 		case "a":
 			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
