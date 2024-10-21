@@ -74,6 +74,12 @@ type PlaySongMsg struct {
 }
 
 func (sl *SongList) ForcePlaySong() tea.Cmd {
+	if len(sl.Songs) == 0 {
+		return nil
+	}
+	if sl.hoverIndex > len(sl.Songs) {
+		return nil
+	}
 	song := sl.Songs[sl.hoverIndex]
 
 	return func() tea.Msg {
@@ -89,6 +95,9 @@ func (sl *SongList) AddToQueue() tea.Cmd {
 	}
 }
 
-func (s *SongList) GetSelectedSong() api.Song {
-	return s.Songs[s.hoverIndex]
+func (s *SongList) GetSelectedSong() *api.Song {
+	if len(s.Songs) == 0 {
+		return nil
+	}
+	return &s.Songs[s.hoverIndex]
 }

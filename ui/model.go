@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -29,7 +30,7 @@ const (
 
 var (
 	SongTab     Tab
-	PlaylistTab = Tab{name: "Playlist", item: components.NewBaseView("", "playlist", "")}
+	PlaylistTab Tab
 	QueueTab    Tab
 
 	textStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
@@ -50,15 +51,17 @@ type model struct {
 	height        int
 	width         int
 	player        *stream.Player
+	store         *sql.DB
 }
 
-func NewModel(client *http.Client) *model {
+func NewModel(client *http.Client, db *sql.DB) *model {
 	s := spinner.New()
 	s.Spinner = spinner.Line
 	s.Style = spinnerStyle
 	SongTab = Tab{name: "Song", item: components.NewSongList([]api.Song{})}
 	queueItem := components.NewQueue()
 	QueueTab = Tab{name: "Queue", item: queueItem}
+	PlaylistTab = Tab{name: "Playlist", item: components.NewPlaylistComponent(db)}
 	tabs := []Tab{SongTab, PlaylistTab, QueueTab}
 	return &model{
 		activeTab: SongTab,
@@ -70,6 +73,7 @@ func NewModel(client *http.Client) *model {
 		spinner:   s,
 		queue:     queueItem,
 		player:    stream.NewPlayer(),
+		store:     db,
 	}
 }
 
@@ -98,6 +102,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case components.InputStateMsg:
+		m.state = InputMode
 	case tea.WindowSizeMsg:
 		m.width = msg.Height
 		m.height = msg.Height
@@ -169,7 +175,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "a":
 			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
 				selectedSong := songList.GetSelectedSong()
-				m.queue.AddToQueue(selectedSong)
+				if selectedSong == nil {
+					return m, nil
+				}
+				m.queue.AddToQueue(*selectedSong)
 
 				if len(m.queue.Songs) <= 1 && !m.hasActiveSong {
 					cmds = append(cmds, m.PlayNextSong())
@@ -191,6 +200,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeTab = QueueTab
 			}
 		case "f":
+			if m.state == IdleMode && (m.activeTab == SongTab || m.activeTab == PlaylistTab) {
+				m.state = InputMode
+			}
+		case "c":
 			if m.state == IdleMode && (m.activeTab == SongTab || m.activeTab == PlaylistTab) {
 				m.state = InputMode
 			}
