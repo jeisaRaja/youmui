@@ -36,21 +36,17 @@ func NewPlayer() *Player {
 
 func (p *Player) terminatePreviousCommands() {
 	if p.ytdlpCmd != nil {
-		if err := p.ytdlpCmd.Process.Kill(); err != nil {
-			fmt.Printf("Failed to kill yt-dlp: %v\n", err)
+		if err := p.ytdlpCmd.Process.Kill(); err == nil {
+			_ = p.ytdlpCmd.Wait()
 		}
-		if err := p.ytdlpCmd.Wait(); err != nil && isSignalKilled(err) {
-			fmt.Printf("yt-dlp command failed: %v\n", err)
-		}
+		p.ytdlpCmd = nil
 	}
 
 	if p.ffmpegCmd != nil {
-		if err := p.ffmpegCmd.Process.Kill(); err != nil {
-			fmt.Printf("Failed to kill ffmpeg: %v\n", err)
+		if err := p.ffmpegCmd.Process.Kill(); err == nil {
+			_ = p.ffmpegCmd.Wait()
 		}
-		if err := p.ffmpegCmd.Wait(); err != nil && isSignalKilled(err) {
-			fmt.Printf("ffmpeg command failed: %v\n", err)
-		}
+		p.ffmpegCmd = nil
 	}
 }
 
@@ -136,13 +132,4 @@ func (p *Player) VolumeDown() {
 	speaker.Lock()
 	p.volume.Volume -= 0.5
 	speaker.Unlock()
-}
-
-func isSignalKilled(err error) bool {
-	if exitError, ok := err.(*exec.ExitError); ok {
-		if exitError.ProcessState.ExitCode() == 137 {
-			return true
-		}
-	}
-	return false
 }
