@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -29,7 +30,7 @@ const (
 
 var (
 	SongTab     Tab
-	PlaylistTab = Tab{name: "Playlist", item: components.NewBaseView("", "playlist", "")}
+	PlaylistTab Tab
 	QueueTab    Tab
 
 	textStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Render
@@ -38,27 +39,29 @@ var (
 )
 
 type model struct {
-	activeTab Tab
-	tabs      []Tab
-	state     ModelState
-	client    *http.Client
-	searchbar components.TextInput
-	loading   bool
-	spinner   spinner.Model
-	queue     *components.Queue
-	isPlaying bool
-	height    int
-	width     int
-	player    *stream.Player
+	activeTab     Tab
+	tabs          []Tab
+	state         ModelState
+	client        *http.Client
+	searchbar     components.TextInput
+	loading       bool
+	spinner       spinner.Model
+	queue         *components.Queue
+	hasActiveSong bool
+	height        int
+	width         int
+	player        *stream.Player
+	store         *sql.DB
 }
 
-func NewModel(client *http.Client) *model {
+func NewModel(client *http.Client, db *sql.DB) *model {
 	s := spinner.New()
 	s.Spinner = spinner.Line
 	s.Style = spinnerStyle
 	SongTab = Tab{name: "Song", item: components.NewSongList([]api.Song{})}
 	queueItem := components.NewQueue()
 	QueueTab = Tab{name: "Queue", item: queueItem}
+	PlaylistTab = Tab{name: "Playlist", item: components.NewPlaylistComponent(db)}
 	tabs := []Tab{SongTab, PlaylistTab, QueueTab}
 	return &model{
 		activeTab: SongTab,
@@ -70,6 +73,7 @@ func NewModel(client *http.Client) *model {
 		spinner:   s,
 		queue:     queueItem,
 		player:    stream.NewPlayer(),
+		store:     db,
 	}
 }
 
@@ -89,7 +93,6 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	if m.loading {
@@ -98,66 +101,47 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case components.InputStateMsg:
+		m.state = InputMode
 	case tea.WindowSizeMsg:
 		m.width = msg.Height
 		m.height = msg.Height
 	case components.PlaySongMsg:
-		if songList, ok := m.activeTab.item.(*components.SongList); ok {
-			selectedSong := songList.GetSelectedSong()
-			m.PlaySelectedSong(selectedSong)
-		}
+		return m, m.PlaySelectedSong(msg.Song)
 	case PlaybackFinished:
-		if len(m.queue.Songs) > 0 {
-			cmds = append(cmds, m.PlayNextSong())
-		} else {
-			m.isPlaying = false
-			m.queue.PlayingSong = nil
-		}
-	case components.SongEnqueuedMsg:
-		m.AddToQueue(msg.Song)
-		if len(m.queue.Songs) == 1 && !m.isPlaying {
-			cmds = append(cmds, m.PlayNextSong())
-		}
+		m.handlePlaybackFinished()
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	case SongListMsg:
-		m.loading = false
-		if songList, ok := m.activeTab.item.(*components.SongList); ok {
-			songList.UpdateSongs(msg.Songs)
-		}
-		m.state = IdleMode
-		return m, nil
+		return m, m.handleSongListMsg(msg)
 	case tea.KeyMsg:
 		if m.state == InputMode {
-			if msg.String() == "esc" {
+			switch msg.String() {
+			case "esc":
 				m.state = IdleMode
-			} else if msg.String() == "enter" {
-				if m.ActiveTab().name == "Song" {
-					searchQuery := m.searchbar.Input.Value()
-					m.searchbar.Input.SetValue("")
-					cmd = SearchSongCallback(searchQuery)
-					m.loading = true
+
+			case "enter":
+				cmd := m.handleEnterKey(msg)
+				if cmd != nil {
 					cmds = append(cmds, cmd)
 				}
 				m.state = IdleMode
-			} else if msg.String() == "ctrl+c" {
+			case "ctrl+c":
 				return m, tea.Quit
-			} else {
+
+			default:
 				_, cmd := m.searchbar.Update(msg)
 				cmds = append(cmds, cmd)
 			}
+
 			return m, tea.Batch(cmds...)
 		}
 
 		switch msg.String() {
 		case "enter":
-			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
-				selectedSong := songList.GetSelectedSong()
-				cmds = append(cmds, m.PlaySelectedSong(selectedSong))
-				m.queue.View()
-			}
+			return m, m.handleEnterKey(msg)
 		case "-":
 			m.player.VolumeDown()
 			return m, nil
@@ -165,24 +149,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.player.VolumeUp()
 			return m, nil
 		case "n":
-			m.StopPlayback()
 			cmds = append(cmds, m.PlayNextSong())
 		case "x":
 			m.player.PlayPause()
-      m.queue.PlayPause()
+			m.queue.PlayPause()
 			return m, nil
 		case "a":
-			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
-				selectedSong := songList.GetSelectedSong()
-				m.queue.AddToQueue(selectedSong)
-
-				if len(m.queue.Songs) == 1 && !m.isPlaying {
-					cmds = append(cmds, m.PlayNextSong())
-				}
-				if m.ActiveTab().name == "Queue" {
-					m.ActiveTab().item.View()
-				}
-			}
+			m, cmd := m.handleAddToQueue()
+			return m, cmd
 		case "s":
 			if m.state == IdleMode {
 				m.activeTab = SongTab
@@ -196,6 +170,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeTab = QueueTab
 			}
 		case "f":
+			if m.state == IdleMode && (m.activeTab == SongTab || m.activeTab == PlaylistTab) {
+				m.state = InputMode
+			}
+		case "c":
 			if m.state == IdleMode && (m.activeTab == SongTab || m.activeTab == PlaylistTab) {
 				m.state = InputMode
 			}
@@ -290,17 +268,17 @@ type PlaybackFinished struct{}
 
 func (m *model) PlayNextSong() tea.Cmd {
 	if len(m.queue.Songs) == 0 {
+		m.hasActiveSong = false
 		return nil
 	}
+	m.hasActiveSong = true
 
 	nextSong := m.queue.RemoveFromQueue()
 	m.queue.SetPlayingSong(nextSong)
 
 	return func() tea.Msg {
-		m.isPlaying = true
 		err := m.player.FetchAndPlayAudio(nextSong.URL)
 		if err != nil {
-			m.isPlaying = false
 			return tea.Msg("Error playing audio")
 		}
 
@@ -313,16 +291,67 @@ func (m *model) AddToQueue(song api.Song) tea.Cmd {
 	return nil
 }
 
-func (m *model) StopPlayback() tea.Cmd {
-	m.isPlaying = false
-	return nil
-}
-
 func (m *model) PlaySelectedSong(selectedSong api.Song) tea.Cmd {
-	m.StopPlayback()
-
 	m.queue.Clear()
 	m.AddToQueue(selectedSong)
 
 	return m.PlayNextSong()
+}
+
+func (m *model) handlePlaybackFinished() tea.Cmd {
+	if len(m.queue.Songs) > 0 {
+		return m.PlayNextSong()
+	} else {
+		m.hasActiveSong = false
+		m.queue.PlayingSong = nil
+	}
+	return nil
+}
+
+func (m *model) handleSongListMsg(msg SongListMsg) tea.Cmd {
+	m.loading = false
+	if songList, ok := m.activeTab.item.(*components.SongList); ok {
+		songList.UpdateSongs(msg.Songs)
+	}
+	m.state = IdleMode
+	return nil
+}
+
+func (m *model) handleEnterKey(msg tea.KeyMsg) tea.Cmd {
+	switch m.ActiveTab().name {
+	case "Song":
+		if m.state == InputMode {
+			searchQuery := m.searchbar.Input.Value()
+			m.searchbar.Input.SetValue("")
+			m.loading = true
+			return SearchSongCallback(searchQuery)
+		} else {
+
+			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
+				_, cmd := songList.Update(msg)
+				return cmd
+			}
+		}
+	}
+
+	return nil
+}
+
+func (m *model) handleAddToQueue() (*model, tea.Cmd) {
+	if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
+		selectedSong := songList.GetSelectedSong()
+		if selectedSong == nil {
+			return m, nil
+		}
+
+		m.queue.AddToQueue(*selectedSong)
+
+		if len(m.queue.Songs) <= 1 && !m.hasActiveSong {
+			return m, m.PlayNextSong()
+		}
+
+		return m, nil
+	}
+
+	return m, nil
 }
