@@ -6,24 +6,28 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type InputUsage int
+
+const (
+	SearchSong = iota
+	SearchPlaylist
+	CreatePlaylist
+)
+
 type TextInput struct {
 	tea.Model
-	Input    textinput.Model
-	callback InputCallback
+	Input textinput.Model
+	Usage InputUsage
 }
 
-type InputCallback func(input string) tea.Cmd
-
-func NewTextInputView(charLimit, width int, callback InputCallback) *TextInput {
+func NewTextInputView(charLimit, width int) *TextInput {
 
 	ti := textinput.New()
-	ti.Placeholder = "Search..."
 	ti.CharLimit = charLimit
 	ti.Width = width
 
 	return &TextInput{
-		Input:    ti,
-		callback: callback,
+		Input: ti,
 	}
 }
 
@@ -43,4 +47,13 @@ func (tm *TextInput) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (tm *TextInput) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, tm.Input.View())
+}
+
+func (tm *TextInput) SetPlaceholder(p string) *TextInput {
+	tm.Input.Placeholder = p
+	return tm
+}
+
+func (tm *TextInput) SetUsage(usage InputUsage) {
+	tm.Usage = usage
 }

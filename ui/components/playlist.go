@@ -1,7 +1,8 @@
 package components
 
 import (
-	"database/sql"
+	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -9,53 +10,59 @@ import (
 )
 
 type Playlist struct {
+	ID    int64
 	Title string
 	Songs []api.Song
 }
 
 type PlaylistComponent struct {
-	TitleInput textinput.Model
-	ShowInput  bool
-	Storage    *sql.DB
+	playlists []Playlist
 }
 
 type InputStateMsg struct{}
 
-func NewPlaylistComponent(db *sql.DB) *PlaylistComponent {
+func NewPlaylistComponent() *PlaylistComponent {
 	ti := textinput.New()
 	ti.Placeholder = "Playlist title"
 	ti.Focus()
-	return &PlaylistComponent{
-		TitleInput: ti,
-		Storage:    db,
-	}
+	return &PlaylistComponent{}
 }
 
-func (p PlaylistComponent) Init() tea.Cmd {
+func (p *PlaylistComponent) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-func (p PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "c":
-			// return p, func() tea.Msg {
-			// 	return InputStateMsg{}
-			// }
 		}
-	}
-	if p.ShowInput {
-		var cmd tea.Cmd
-		p.TitleInput, cmd = p.TitleInput.Update(msg)
-		return p, cmd
 	}
 	return p, nil
 }
 
-func (p PlaylistComponent) View() string {
-	if p.ShowInput {
-		return "waduh asu " + p.TitleInput.View()
+func (p *PlaylistComponent) View() string {
+	var builder strings.Builder
+
+	builder.WriteString("\n\n")
+
+	builder.WriteString("Playlists:\n")
+	for i, playlist := range p.playlists {
+		builder.WriteString(fmt.Sprintf("%d. %s (%d songs)\n", i+1, playlist.Title, len(playlist.Songs)))
 	}
-	return "This is the playlist"
+
+	return builder.String()
+}
+
+func (p *PlaylistComponent) AppendPlaylist(title string, id int64) {
+	p.playlists = append(p.playlists, Playlist{Title: title, ID: id})
+}
+
+func (p *PlaylistComponent) SetPlaylists(data []struct {
+	Title string
+	ID    int64
+}) {
+	for _, ps := range data {
+		p.AppendPlaylist(ps.Title, ps.ID)
+	}
 }

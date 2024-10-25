@@ -2,19 +2,17 @@ package ui
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jeisaraja/youmui/api"
+	"github.com/jeisaraja/youmui/storage"
 	"github.com/jeisaraja/youmui/stream"
 	"github.com/jeisaraja/youmui/ui/components"
 )
-
-type SongListMsg struct {
-	Songs []api.Song
-}
 
 type Tab struct {
 	name string
@@ -43,7 +41,8 @@ type model struct {
 	tabs          []Tab
 	state         ModelState
 	client        *http.Client
-	searchbar     components.TextInput
+	input         components.TextInput
+	inputHeader   string
 	loading       bool
 	spinner       spinner.Model
 	queue         *components.Queue
@@ -55,20 +54,27 @@ type model struct {
 }
 
 func NewModel(client *http.Client, db *sql.DB) *model {
+
 	s := spinner.New()
 	s.Spinner = spinner.Line
 	s.Style = spinnerStyle
 	SongTab = Tab{name: "Song", item: components.NewSongList([]api.Song{})}
 	queueItem := components.NewQueue()
 	QueueTab = Tab{name: "Queue", item: queueItem}
-	PlaylistTab = Tab{name: "Playlist", item: components.NewPlaylistComponent(db)}
+
+	ps, _ := storage.GetPlaylists(db)
+	playlistComp := components.NewPlaylistComponent()
+	playlistComp.SetPlaylists(ps)
+	PlaylistTab = Tab{name: "Playlist", item: playlistComp}
+
 	tabs := []Tab{SongTab, PlaylistTab, QueueTab}
+
 	return &model{
 		activeTab: SongTab,
 		tabs:      tabs,
 		state:     IdleMode,
 		client:    client,
-		searchbar: *components.NewTextInputView(50, 50, nil),
+		input:     *components.NewTextInputView(50, 50),
 		loading:   false,
 		spinner:   s,
 		queue:     queueItem,
@@ -85,7 +91,7 @@ func (m *model) Init() tea.Cmd {
 		batchCmds = append(batchCmds, t.item.Init())
 	}
 	batchCmds = append(batchCmds, m.loadSongsAsync())
-	batchCmds = append(batchCmds, m.searchbar.Init())
+	batchCmds = append(batchCmds, m.input.Init())
 	batchCmds = append(batchCmds, m.spinner.Tick)
 	return tea.Batch(
 		batchCmds...,
@@ -101,6 +107,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case CreatePlaylistMsg:
+		if playlistTab, ok := m.ActiveTab().item.(*components.PlaylistComponent); ok {
+			playlistTab.AppendPlaylist(msg.Title, msg.ID)
+		}
 	case components.InputStateMsg:
 		m.state = InputMode
 	case tea.WindowSizeMsg:
@@ -132,7 +142,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 
 			default:
-				_, cmd := m.searchbar.Update(msg)
+				_, cmd := m.input.Update(msg)
 				cmds = append(cmds, cmd)
 			}
 
@@ -170,13 +180,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.activeTab = QueueTab
 			}
 		case "f":
-			if m.state == IdleMode && (m.activeTab == SongTab || m.activeTab == PlaylistTab) {
+			if m.state == IdleMode {
 				m.state = InputMode
 			}
+			if m.activeTab == PlaylistTab {
+				m.input.SetUsage(components.SearchPlaylist)
+				m.inputHeader = "Search for playlist"
+			} else {
+				m.inputHeader = "Search for song"
+				m.input.SetUsage(components.SearchSong)
+			}
+			m.input.SetPlaceholder(fmt.Sprintf("%s title", m.activeTab.name))
 		case "c":
-			if m.state == IdleMode && (m.activeTab == SongTab || m.activeTab == PlaylistTab) {
+			if m.state == IdleMode {
 				m.state = InputMode
 			}
+			m.inputHeader = "Create a new playlist"
+			m.input.SetUsage(components.CreatePlaylist)
+			m.input.SetPlaceholder("Playlist title")
 		case "esc":
 			if m.state == InputMode {
 				m.state = IdleMode
@@ -186,7 +207,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		default:
 			if m.state == InputMode {
-				_, cmd := m.searchbar.Update(msg)
+				_, cmd := m.input.Update(msg)
 				cmds = append(cmds, cmd)
 			} else {
 				_, cmd := m.ActiveTab().item.Update(msg)
@@ -213,8 +234,8 @@ func (m *model) View() string {
 		searchBar := lipgloss.NewStyle().
 			Width(80).
 			PaddingLeft(4).
-			Render(m.searchbar.View())
-		tabContent += "\n\n    Search For " + m.ActiveTab().name + "\n\n" + searchBar
+			Render(m.input.View())
+		tabContent += "\n\n    " + m.inputHeader + "\n\n" + searchBar
 	}
 
 	if m.loading {
@@ -227,23 +248,6 @@ func (m *model) View() string {
 
 func (m *model) ActiveTab() Tab {
 	return m.activeTab
-}
-
-func SearchSongCallback(input string) tea.Cmd {
-	return func() tea.Msg {
-		file, err := tea.LogToFile("debug.log", "log:\n")
-		defer file.Close()
-		if err != nil {
-			panic("err while opening debug.log")
-		}
-		file.WriteString("Search API call with being called!\n")
-		res, err := api.SearchWithKeyword(api.NewClient(), input, 5)
-		if err != nil {
-			file.WriteString("using yt-dlp to search")
-			res, err = api.SearchWithKeywordWithoutApi(input)
-		}
-		return SongListMsg{Songs: res}
-	}
 }
 
 func (m *model) loadSongsAsync() tea.Cmd {
@@ -318,19 +322,21 @@ func (m *model) handleSongListMsg(msg SongListMsg) tea.Cmd {
 }
 
 func (m *model) handleEnterKey(msg tea.KeyMsg) tea.Cmd {
-	switch m.ActiveTab().name {
-	case "Song":
-		if m.state == InputMode {
-			searchQuery := m.searchbar.Input.Value()
-			m.searchbar.Input.SetValue("")
-			m.loading = true
-			return SearchSongCallback(searchQuery)
-		} else {
+	if m.state == InputMode {
+		inputValue := m.input.Input.Value()
+		m.input.Input.SetValue("")
+		m.loading = true
+		switch m.input.Usage {
+		case components.SearchSong:
+			return SearchSongCallback(inputValue)
+		case components.CreatePlaylist:
+			return CreatePlaylistCallback(m.store, inputValue)
+		}
+	} else {
 
-			if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
-				_, cmd := songList.Update(msg)
-				return cmd
-			}
+		if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
+			_, cmd := songList.Update(msg)
+			return cmd
 		}
 	}
 

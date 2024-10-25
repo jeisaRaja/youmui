@@ -47,16 +47,47 @@ func createTables(db *sql.DB) {
 	}
 }
 
-func AddPlaylist(db *sql.DB, title string) int64 {
+func AddPlaylist(db *sql.DB, title string) (*int64, error) {
 	result, err := db.Exec("INSERT INTO playlists (title) VALUES (?)", title)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	playlistID, err := result.LastInsertId()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
-	return playlistID
+	return &playlistID, nil
+}
+
+func GetPlaylists(db *sql.DB) ([]struct {
+	Title string
+	ID    int64
+}, error) {
+	rows, err := db.Query("SELECT id, title FROM playlists;")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var playlists []struct {
+		Title string
+		ID    int64
+	}
+	for rows.Next() {
+		var playlist struct {
+			Title string
+			ID    int64
+		}
+		if err := rows.Scan(&playlist.ID, &playlist.Title); err != nil {
+			return nil, err
+		}
+		playlists = append(playlists, playlist)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return playlists, nil
 }
 
 func AddSongToPlaylist(db *sql.DB, playlistID int64, song api.Song) error {
