@@ -148,3 +148,26 @@ func AddSongToPlaylist(db *sql.DB, playlistID int64, song api.Song) error {
 
 	return nil
 }
+
+func GetSongsFromPlaylist(db *sql.DB, pid int64) ([]api.Song, error) {
+	rows, err := db.Query(`
+    SELECT songs.title, songs.url FROM songs INNER JOIN playlist_songs
+    ON playlist_songs.song_id = songs.id
+    WHERE playlist_songs.playlist_id = ?
+    `, pid)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get songs from playlist: %w", err)
+	}
+	defer rows.Close()
+	var songs []api.Song
+	for rows.Next() {
+		var song api.Song
+		err := rows.Scan(&song.Title, &song.URL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan song: %w", err)
+		}
+		songs = append(songs, song)
+	}
+
+	return songs, nil
+}

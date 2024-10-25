@@ -60,3 +60,17 @@ func AddSongToPlaylistCallback(db *sql.DB, playlist int64, song api.Song) tea.Cm
 		}
 	}
 }
+
+type PlayEntirePlaylistMsg struct {
+	Songs []api.Song
+}
+
+func PlayEntirePlaylistCallback(db *sql.DB, pid int64) tea.Cmd {
+	return func() tea.Msg {
+		songs, err := storage.GetSongsFromPlaylist(db, pid)
+		if err != nil {
+			panic(fmt.Errorf("error when getting songs from playlist: %w", err))
+		}
+		return PlayEntirePlaylistMsg{Songs: songs}
+	}
+}

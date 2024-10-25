@@ -114,6 +114,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case PlaybackError:
+		panic(msg)
+	case PlayEntirePlaylistMsg:
+		cmd := m.AddManyToQueue(msg.Songs)
+		return m, cmd
 	case SongAddedToPlaylistMsg:
 		m.playlistTab.IncrementCount(msg.PlaylistID)
 	case CreatePlaylistMsg:
@@ -161,6 +166,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "P":
+			pid := m.playlistTab.GetCurrent()
+			return m, PlayEntirePlaylistCallback(m.store, pid)
 		case "i":
 			return m, m.handleAddToPlaylist()
 		case "enter":
@@ -168,7 +176,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "-":
 			m.player.VolumeDown()
 			return m, nil
-		case "=":
+		case "+":
 			m.player.VolumeUp()
 			return m, nil
 		case "n":
@@ -290,6 +298,7 @@ func (m *model) loadSongsAsync() tea.Cmd {
 }
 
 type PlaybackFinished struct{}
+type PlaybackError string
 
 func (m *model) PlayNextSong() tea.Cmd {
 	if len(m.queue.Songs) == 0 {
@@ -304,7 +313,7 @@ func (m *model) PlayNextSong() tea.Cmd {
 	return func() tea.Msg {
 		err := m.player.FetchAndPlayAudio(nextSong.URL)
 		if err != nil {
-			return tea.Msg("Error playing audio")
+			return PlaybackError(err.Error())
 		}
 
 		return PlaybackFinished{}
@@ -314,6 +323,14 @@ func (m *model) PlayNextSong() tea.Cmd {
 func (m *model) AddToQueue(song api.Song) tea.Cmd {
 	m.queue.AddToQueue(song)
 	return nil
+}
+
+func (m *model) AddManyToQueue(songs []api.Song) tea.Cmd {
+	m.queue.Clear()
+	for _, song := range songs {
+		m.AddToQueue(song)
+	}
+	return m.PlayNextSong()
 }
 
 func (m *model) PlaySelectedSong(selectedSong api.Song) tea.Cmd {

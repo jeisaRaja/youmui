@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type Playlist struct {
@@ -16,6 +17,7 @@ type Playlist struct {
 
 type PlaylistComponent struct {
 	playlists []Playlist
+	cur       int
 }
 
 type InputStateMsg struct{}
@@ -35,6 +37,14 @@ func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "j", "down":
+			if p.cur < len(p.playlists)-1 {
+				p.cur++
+			}
+		case "k", "up":
+			if p.cur > 0 {
+				p.cur--
+			}
 		}
 	}
 	return p, nil
@@ -42,15 +52,20 @@ func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (p *PlaylistComponent) View() string {
 	var builder strings.Builder
+	builder.WriteString("\n\nPlaylists:\n")
 
-	builder.WriteString("\n\n")
+	normalStyle := lipgloss.NewStyle()
+	hoverStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
 
-	builder.WriteString("Playlists:\n")
 	for i, playlist := range p.playlists {
-		builder.WriteString(fmt.Sprintf("%d. %s (%d songs)\n", i+1, playlist.Title, playlist.Count))
+		style := normalStyle
+		if i == p.cur {
+			style = hoverStyle
+		}
+		builder.WriteString(fmt.Sprintf("%d. %s (%d songs)\n", i+1, style.Render(playlist.Title), playlist.Count))
 	}
 
-	return builder.String()
+	return lipgloss.NewStyle().PaddingTop(2).Render(builder.String())
 }
 
 func (p *PlaylistComponent) AppendPlaylist(title string, id int64, count int64) {
@@ -73,4 +88,11 @@ func (p *PlaylistComponent) IncrementCount(pid int64) {
 			p.playlists[i].Count++
 		}
 	}
+}
+
+func (p *PlaylistComponent) GetCurrent() int64 {
+	if len(p.playlists) > 0 {
+		return p.playlists[p.cur].ID
+	}
+	return 0
 }
