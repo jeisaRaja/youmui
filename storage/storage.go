@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"fmt"
 	"log"
 
 	"github.com/jeisaraja/youmui/api"
@@ -27,7 +28,7 @@ func createTables(db *sql.DB) {
         );
 
         CREATE TABLE IF NOT EXISTS songs (
-            id TEXT PRIMARY KEY,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             description TEXT,
             channel_id TEXT,
@@ -62,8 +63,20 @@ func AddPlaylist(db *sql.DB, title string) (*int64, error) {
 func GetPlaylists(db *sql.DB) ([]struct {
 	Title string
 	ID    int64
+	Count int64
 }, error) {
-	rows, err := db.Query("SELECT id, title FROM playlists;")
+	rows, err := db.Query(`
+        SELECT 
+            playlists.id, 
+            playlists.title, 
+            COUNT(playlist_songs.song_id) AS song_count
+        FROM 
+            playlists
+        LEFT JOIN 
+            playlist_songs ON playlists.id = playlist_songs.playlist_id
+        GROUP BY 
+            playlists.id, playlists.title;
+    `)
 	if err != nil {
 		return nil, err
 	}
@@ -71,13 +84,15 @@ func GetPlaylists(db *sql.DB) ([]struct {
 	var playlists []struct {
 		Title string
 		ID    int64
+		Count int64
 	}
 	for rows.Next() {
 		var playlist struct {
 			Title string
 			ID    int64
+			Count int64
 		}
-		if err := rows.Scan(&playlist.ID, &playlist.Title); err != nil {
+		if err := rows.Scan(&playlist.ID, &playlist.Title, &playlist.Count); err != nil {
 			return nil, err
 		}
 		playlists = append(playlists, playlist)
@@ -95,20 +110,35 @@ func AddSongToPlaylist(db *sql.DB, playlistID int64, song api.Song) error {
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`
-		INSERT OR IGNORE INTO songs (id, title, description, channel_id, url)
-		VALUES (?, ?, ?, ?, ?)`, song.ID, song.Title, song.Description, song.ChannelID, song.URL)
-	if err != nil {
+	var songID int64
+
+	err = tx.QueryRow(`
+    SELECT id FROM songs WHERE url = ?
+    `, song.URL).Scan(&songID)
+	if err == sql.ErrNoRows {
+		res, err := tx.Exec(`
+		INSERT INTO songs ( title,   url)
+		VALUES (?, ?)`, song.Title, song.URL)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to insert song: %w", err)
+		}
+		songID, err = res.LastInsertId()
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to retreive last song id: %w", err)
+		}
+	} else if err != nil {
 		tx.Rollback()
-		return err
+		return fmt.Errorf("failed to check if song exist: %w", err)
 	}
 
 	_, err = tx.Exec(`
 		INSERT INTO playlist_songs (playlist_id, song_id)
-		VALUES (?, ?)`, playlistID, song.ID)
+		VALUES (?, ?)`, playlistID, songID)
 	if err != nil {
 		tx.Rollback()
-		return err
+		return fmt.Errorf("failed to insert playlist_song: %w", err)
 	}
 
 	err = tx.Commit()

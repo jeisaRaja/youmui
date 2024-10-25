@@ -2,6 +2,7 @@ package ui
 
 import (
 	"database/sql"
+	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jeisaraja/youmui/api"
@@ -25,6 +26,7 @@ func SearchSongCallback(input string) tea.Cmd {
 type CreatePlaylistMsg struct {
 	Title string
 	ID    int64
+	Count int64
 }
 
 func CreatePlaylistCallback(db *sql.DB, input string) tea.Cmd {
@@ -36,6 +38,25 @@ func CreatePlaylistCallback(db *sql.DB, input string) tea.Cmd {
 		return CreatePlaylistMsg{
 			Title: input,
 			ID:    *res,
+			Count: 0,
+		}
+	}
+}
+
+type SongAddedToPlaylistMsg struct {
+	PlaylistID int64
+	SongID     string
+}
+
+func AddSongToPlaylistCallback(db *sql.DB, playlist int64, song api.Song) tea.Cmd {
+	return func() tea.Msg {
+		err := storage.AddSongToPlaylist(db, playlist, song)
+		if err != nil {
+			panic(fmt.Errorf("error when adding a song to a playlist: %w", err))
+		}
+		return SongAddedToPlaylistMsg{
+			PlaylistID: playlist,
+			SongID:     song.ID,
 		}
 	}
 }
