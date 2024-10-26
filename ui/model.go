@@ -66,7 +66,7 @@ func NewModel(client *http.Client, db *sql.DB) *model {
 	QueueTab = Tab{name: "Queue", item: queueItem}
 
 	ps, _ := storage.GetPlaylists(db)
-	playlistComp := components.NewPlaylistComponent()
+	playlistComp := components.NewPlaylistComponent(db)
 	playlistComp.SetPlaylists(ps)
 	PlaylistTab = Tab{name: "Playlist", item: playlistComp}
 
@@ -114,6 +114,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case components.SongsFetch:
+		_, cmd := m.playlistTab.Update(msg)
+		return m, cmd
 	case PlaybackError:
 		panic(msg)
 	case PlayEntirePlaylistMsg:
@@ -133,7 +136,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case components.PlaySongMsg:
 		return m, m.PlaySelectedSong(msg.Song)
 	case PlaybackFinished:
-		m.handlePlaybackFinished()
+		return m, m.handlePlaybackFinished()
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -379,6 +382,11 @@ func (m *model) handleEnterKey(msg tea.KeyMsg) tea.Cmd {
 			return cmd
 		}
 		_, cmd := songList.Update(msg)
+		return cmd
+	}
+
+	if playlist, ok := m.ActiveTab().item.(*components.PlaylistComponent); ok {
+		_, cmd := playlist.Update(msg)
 		return cmd
 	}
 

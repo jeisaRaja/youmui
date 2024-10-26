@@ -1,12 +1,15 @@
 package components
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/jeisaraja/youmui/api"
+	"github.com/jeisaraja/youmui/storage"
 )
 
 type Playlist struct {
@@ -16,17 +19,17 @@ type Playlist struct {
 }
 
 type PlaylistComponent struct {
-	playlists []Playlist
-	cur       int
+	playlists    []Playlist
+	cur          int
+	openPlaylist *SongList
+	isOpen       bool
+	db           *sql.DB
 }
 
 type InputStateMsg struct{}
 
-func NewPlaylistComponent() *PlaylistComponent {
-	ti := textinput.New()
-	ti.Placeholder = "Playlist title"
-	ti.Focus()
-	return &PlaylistComponent{}
+func NewPlaylistComponent(db *sql.DB) *PlaylistComponent {
+	return &PlaylistComponent{db: db, isOpen: false, openPlaylist: NewSongList(nil)}
 }
 
 func (p *PlaylistComponent) Init() tea.Cmd {
@@ -34,14 +37,34 @@ func (p *PlaylistComponent) Init() tea.Cmd {
 }
 
 func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if p.isOpen {
+		_, cmd := p.openPlaylist.Update(msg)
+		return p, cmd
+	}
+
 	switch msg := msg.(type) {
+	case SongsFetch:
+		p.openPlaylist.UpdateSongs(msg.songs)
+		p.isOpen = true
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "enter":
+			if !p.isOpen {
+				return p, GetAllSongsFromPlaylist(p.db, p.playlists[p.cur].ID)
+			}
 		case "j", "down":
+			if p.isOpen {
+				_, cmd := p.openPlaylist.Update(msg)
+				return p, cmd
+			}
 			if p.cur < len(p.playlists)-1 {
 				p.cur++
 			}
 		case "k", "up":
+			if p.isOpen {
+				_, cmd := p.openPlaylist.Update(msg)
+				return p, cmd
+			}
 			if p.cur > 0 {
 				p.cur--
 			}
@@ -53,6 +76,10 @@ func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (p *PlaylistComponent) View() string {
 	var builder strings.Builder
 	builder.WriteString("\n\nPlaylists:\n")
+
+	if p.isOpen {
+		return p.openPlaylist.View()
+	}
 
 	normalStyle := lipgloss.NewStyle()
 	hoverStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
@@ -95,4 +122,18 @@ func (p *PlaylistComponent) GetCurrent() int64 {
 		return p.playlists[p.cur].ID
 	}
 	return 0
+}
+
+type SongsFetch struct {
+	songs []api.Song
+}
+
+func GetAllSongsFromPlaylist(db *sql.DB, pid int64) tea.Cmd {
+	return func() tea.Msg {
+		songs, err := storage.GetSongsFromPlaylist(db, pid)
+		if err != nil {
+			panic("error when getting songs from playlist")
+		}
+		return SongsFetch{songs}
+	}
 }
