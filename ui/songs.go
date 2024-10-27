@@ -83,7 +83,7 @@ func (sl *SongList) UpdateSongs(songs []api.Song) {
 		songComponents = append(songComponents, NewSong(song))
 	}
 	sl.Songs = songs
-	if sl.hoverIndex > len(songs) {
+	if sl.hoverIndex > len(songs)-1 {
 		sl.hoverIndex = len(songs) - 1
 	}
 }

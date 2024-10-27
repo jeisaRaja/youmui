@@ -133,3 +133,4 @@ func (p *Player) VolumeDown() {
 	p.volume.Volume -= 0.5
 	speaker.Unlock()
 }
+

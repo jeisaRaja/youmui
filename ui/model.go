@@ -69,8 +69,12 @@ func NewModel(client *http.Client, db *sql.DB) *model {
 	QueueTab = Tab{name: "Queue", item: queueItem}
 
 	ps, _ := storage.GetPlaylists(db)
+	playlists := make(PlaylistsData, len(ps))
+	for i, p := range ps {
+		playlists[i] = PlaylistData(p)
+	}
 	playlistComp := NewPlaylistComponent(db)
-	playlistComp.SetPlaylists(ps)
+	playlistComp.SetPlaylists(playlists)
 	PlaylistTab = Tab{name: "Playlist", item: playlistComp}
 	tabs := []Tab{SongTab, PlaylistTab}
 	sp := NewSelectPlaylist(ps)
@@ -115,6 +119,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case PlaylistsData:
+		_, cmd := m.playlistTab.Update(msg)
+		cmds = append(cmds, cmd)
+	case SongDeleted:
+		_, cmd := m.playlistTab.Update(msg)
+		cmds = append(cmds, cmd)
 	case ShowPlaylistOptions:
 		m.handleAddToPlaylist()
 	case SongEnqueuedMsg:
@@ -125,8 +135,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case SongsFromPlaylist:
 		_, cmd := m.playlistTab.Update(msg)
 		return m, cmd
-	case PlaybackError:
-		panic(msg)
 	case PlayPlaylistMsg:
 		m.queue.AddManyToQueue(msg.Songs)
 		return m, m.PlayNextSong()
@@ -276,7 +284,6 @@ func (m *model) ActiveTab() Tab {
 }
 
 type PlaybackFinished struct{}
-type PlaybackError string
 
 func (m *model) PlayNextSong() tea.Cmd {
 	if len(m.queue.Songs) == 0 {
@@ -291,7 +298,7 @@ func (m *model) PlayNextSong() tea.Cmd {
 	return func() tea.Msg {
 		err := m.player.FetchAndPlayAudio(nextSong.URL)
 		if err != nil {
-			return PlaybackError(err.Error())
+			return tea.Msg("Error playing audio")
 		}
 
 		return PlaybackFinished{}

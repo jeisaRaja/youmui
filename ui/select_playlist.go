@@ -9,7 +9,7 @@ import (
 
 type SelectPlaylist struct {
 	cur       int
-	playlists []Playlist
+	playlists []PlaylistData
 }
 
 func NewSelectPlaylist(ps []struct {
@@ -17,9 +17,9 @@ func NewSelectPlaylist(ps []struct {
 	ID    int64
 	Count int64
 }) *SelectPlaylist {
-	var playlists []Playlist
+	var playlists []PlaylistData
 	for _, p := range ps {
-		pl := Playlist{
+		pl := PlaylistData{
 			Title: p.Title,
 			ID:    p.ID,
 		}
@@ -74,5 +74,5 @@ func (sp *SelectPlaylist) GetSelectedPlaylist() int64 {
 }
 
 func (sp *SelectPlaylist) AppendPlaylist(title string, id int64, count int64) {
-	sp.playlists = append(sp.playlists, Playlist{Title: title, ID: id, Count: count})
+	sp.playlists = append(sp.playlists, PlaylistData{Title: title, ID: id, Count: count})
 }

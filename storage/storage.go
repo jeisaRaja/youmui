@@ -37,7 +37,7 @@ func createTables(db *sql.DB) {
 
         CREATE TABLE IF NOT EXISTS playlist_songs (
             playlist_id INTEGER,
-            song_id TEXT,
+            song_id INTEGER,
             FOREIGN KEY (playlist_id) REFERENCES playlists(id),
             FOREIGN KEY (song_id) REFERENCES songs(id),
             PRIMARY KEY (playlist_id, song_id)
@@ -151,7 +151,7 @@ func AddSongToPlaylist(db *sql.DB, playlistID int64, song api.Song) error {
 
 func GetSongsFromPlaylist(db *sql.DB, pid int64) ([]api.Song, error) {
 	rows, err := db.Query(`
-    SELECT songs.title, songs.url FROM songs INNER JOIN playlist_songs
+    SELECT songs.id, songs.title, songs.url FROM songs INNER JOIN playlist_songs
     ON playlist_songs.song_id = songs.id
     WHERE playlist_songs.playlist_id = ?
     `, pid)
@@ -162,7 +162,7 @@ func GetSongsFromPlaylist(db *sql.DB, pid int64) ([]api.Song, error) {
 	var songs []api.Song
 	for rows.Next() {
 		var song api.Song
-		err := rows.Scan(&song.Title, &song.URL)
+		err := rows.Scan(&song.DbID, &song.Title, &song.URL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan song: %w", err)
 		}
@@ -174,7 +174,7 @@ func GetSongsFromPlaylist(db *sql.DB, pid int64) ([]api.Song, error) {
 
 func GetSongs(db *sql.DB) ([]api.Song, error) {
 	rows, err := db.Query(`
-    SELECT title, url FROM songs LIMIT 10;
+    SELECT id, title, url FROM songs LIMIT 10;
     `)
 	if err != nil {
 		return nil, fmt.Errorf("[ERROR] failed to query GetSongs: %w", err)
@@ -184,7 +184,7 @@ func GetSongs(db *sql.DB) ([]api.Song, error) {
 	var songs []api.Song
 	for rows.Next() {
 		var song api.Song
-		err := rows.Scan(&song.Title, &song.URL)
+		err := rows.Scan(&song.DbID, &song.Title, &song.URL)
 		if err != nil {
 			return nil, fmt.Errorf("[ERROR] failed to scan song: %w", err)
 		}
@@ -196,4 +196,20 @@ func GetSongs(db *sql.DB) ([]api.Song, error) {
 	}
 
 	return songs, nil
+}
+
+func DeleteSongFromPlaylist(db *sql.DB, pid, sid int64) error {
+	_, err := db.Exec(`
+    DELETE FROM playlist_songs WHERE playlist_id = ? AND song_id = ?
+    `, pid, sid)
+
+	if err == sql.ErrNoRows {
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

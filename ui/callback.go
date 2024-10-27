@@ -74,3 +74,43 @@ func PlayPlaylistCallback(db *sql.DB, pid int64) tea.Cmd {
 		return PlayPlaylistMsg{Songs: songs}
 	}
 }
+
+type SongDeleted struct{}
+
+func DeleteSongFromPlaylist(db *sql.DB, pid int64, sid int64) tea.Cmd {
+	return func() tea.Msg {
+		err := storage.DeleteSongFromPlaylist(db, pid, sid)
+		if err != nil {
+			return nil
+		}
+		return SongDeleted{}
+	}
+}
+
+type PlaylistsData []PlaylistData
+
+type PlaylistData struct {
+	Title string
+	ID    int64
+	Count int64
+}
+
+func GetPlaylists(db *sql.DB) tea.Cmd {
+	return func() tea.Msg {
+		rawData, err := storage.GetPlaylists(db)
+		if err != nil {
+			return nil
+		}
+
+		var data PlaylistsData
+		for _, item := range rawData {
+			data = append(data, PlaylistData{
+				Title: item.Title,
+				ID:    item.ID,
+				Count: item.Count,
+			})
+		}
+
+		return data
+	}
+}

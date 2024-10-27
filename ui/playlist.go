@@ -12,14 +12,8 @@ import (
 	"github.com/jeisaraja/youmui/storage"
 )
 
-type Playlist struct {
-	ID    int64
-	Title string
-	Count int64
-}
-
 type PlaylistComponent struct {
-	playlists    []Playlist
+	playlists    []PlaylistData
 	cur          int
 	openPlaylist *SongList
 	isOpen       bool
@@ -39,9 +33,16 @@ func (p *PlaylistComponent) Init() tea.Cmd {
 func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
+	case PlaylistsData:
+		p.RefreshPlaylist(msg)
+		return p, nil
+	case SongDeleted:
+		if p.isOpen {
+			return p, GetAllSongsFromPlaylist(p.db, p.GetCurrent())
+		}
 	case SongsFromPlaylist:
 		p.openPlaylist.UpdateSongs(msg.songs)
-		p.isOpen = true
+		return p, GetPlaylists(p.db)
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "esc":
@@ -54,10 +55,20 @@ func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				_, cmd := p.openPlaylist.Update(msg)
 				return p, cmd
 			}
+		case "d":
+			if p.isOpen {
+				song := p.openPlaylist.GetSelectedSong()
+				return p, DeleteSongFromPlaylist(p.db, p.GetCurrent(), song.DbID)
+			}
 		case "enter":
 			if !p.isOpen {
+				p.isOpen = true
 				return p, GetAllSongsFromPlaylist(p.db, p.playlists[p.cur].ID)
+			} else {
+				_, cmd := p.openPlaylist.Update(msg)
+				return p, cmd
 			}
+
 		case "j", "down":
 			if p.isOpen {
 				_, cmd := p.openPlaylist.Update(msg)
@@ -106,14 +117,14 @@ func (p *PlaylistComponent) View() string {
 }
 
 func (p *PlaylistComponent) AppendPlaylist(title string, id int64, count int64) {
-	p.playlists = append(p.playlists, Playlist{Title: title, ID: id, Count: count})
+	p.playlists = append(p.playlists, PlaylistData{Title: title, ID: id, Count: count})
 }
 
-func (p *PlaylistComponent) SetPlaylists(data []struct {
-	Title string
-	ID    int64
-	Count int64
-}) {
+func (p *PlaylistComponent) RefreshPlaylist(data PlaylistsData) {
+	p.playlists = data
+}
+
+func (p *PlaylistComponent) SetPlaylists(data PlaylistsData) {
 	for _, ps := range data {
 		p.AppendPlaylist(ps.Title, ps.ID, ps.Count)
 	}

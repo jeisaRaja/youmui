@@ -15,6 +15,7 @@ import (
 )
 
 type Song struct {
+	DbID        int64
 	ID          string
 	Title       string
 	Description string
