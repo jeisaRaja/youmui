@@ -72,7 +72,7 @@ func NewModel(client *http.Client, db *sql.DB) *model {
 	playlistComp := NewPlaylistComponent(db)
 	playlistComp.SetPlaylists(ps)
 	PlaylistTab = Tab{name: "Playlist", item: playlistComp}
-	tabs := []Tab{SongTab, PlaylistTab, QueueTab}
+	tabs := []Tab{SongTab, PlaylistTab}
 	sp := NewSelectPlaylist(ps)
 
 	return &model{
@@ -128,8 +128,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PlaybackError:
 		panic(msg)
 	case PlayPlaylistMsg:
-		cmd := m.AddManyToQueue(msg.Songs)
-		return m, cmd
+		m.queue.AddManyToQueue(msg.Songs)
+		return m, m.PlayNextSong()
 	case SongAddedToPlaylistMsg:
 		m.playlistTab.IncrementCount(msg.PlaylistID)
 	case CreatePlaylistMsg:
@@ -178,7 +178,22 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		switch msg.String() {
+		case "esc":
+			if m.isInputMode() {
+				m.state = IdleMode
+				return m, nil
+			}
+			if m.isSelectPlaylist {
+				m.isSelectPlaylist = false
+			}
+			m.ActiveTab().item.Update(msg)
+		case "tab":
+			m.toggleTab()
+			return m, nil
 		case "enter":
+			if m.state == InputMode {
+				m.state = IdleMode
+			}
 			return m, m.handleEnterKey(msg)
 		case "-":
 			m.player.VolumeDown()
@@ -192,10 +207,6 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.player.PlayPause()
 			m.queue.PlayPause()
 			return m, nil
-		case "s":
-			m.activeTab = SongTab
-		case "p":
-			m.activeTab = PlaylistTab
 		case "f":
 			m.isSelectPlaylist = false
 			m.state = InputMode
@@ -240,7 +251,7 @@ func (m *model) View() string {
 		),
 	)
 
-	if m.state == InputMode {
+	if m.isInputMode() {
 		searchBar := lipgloss.NewStyle().
 			Width(80).
 			PaddingLeft(4).
@@ -287,22 +298,9 @@ func (m *model) PlayNextSong() tea.Cmd {
 	}
 }
 
-func (m *model) AddToQueue(song api.Song) tea.Cmd {
-	m.queue.AddToQueue(song)
-	return nil
-}
-
-func (m *model) AddManyToQueue(songs []api.Song) tea.Cmd {
-	m.queue.Clear()
-	for _, song := range songs {
-		m.AddToQueue(song)
-	}
-	return m.PlayNextSong()
-}
-
 func (m *model) PlaySelectedSong(selectedSong api.Song) tea.Cmd {
 	m.queue.Clear()
-	m.AddToQueue(selectedSong)
+	m.queue.AddToQueue(selectedSong)
 
 	return m.PlayNextSong()
 }
@@ -364,4 +362,25 @@ func (m *model) handleAddToPlaylist() {
 	}
 	m.isSelectPlaylist = true
 	return
+}
+
+func (m *model) toggleTab() {
+	currentIndex := -1
+	for i, tab := range m.tabs {
+		if tab.name == m.activeTab.name {
+			currentIndex = i
+			break
+		}
+	}
+
+	if currentIndex == -1 {
+		return
+	}
+	nextIndex := (currentIndex + 1) % len(m.tabs)
+	m.isSelectPlaylist = false
+	m.activeTab = m.tabs[nextIndex]
+}
+
+func (m *model) isInputMode() bool {
+	return m.state == InputMode
 }

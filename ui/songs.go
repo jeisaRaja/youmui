@@ -39,7 +39,6 @@ func (sl *SongList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch keyMsg := msg.(type) {
 	case tea.KeyMsg:
 		key := keyMsg.String()
-
 		switch key {
 		case "down", "j":
 			if sl.hoverIndex < len(sl.Songs)-1 {
@@ -84,6 +83,9 @@ func (sl *SongList) UpdateSongs(songs []api.Song) {
 		songComponents = append(songComponents, NewSong(song))
 	}
 	sl.Songs = songs
+	if sl.hoverIndex > len(songs) {
+		sl.hoverIndex = len(songs) - 1
+	}
 }
 
 type SongEnqueuedMsg struct {
