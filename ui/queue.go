@@ -1,4 +1,4 @@
-package components
+package ui
 
 import (
 	"fmt"
@@ -66,4 +66,11 @@ func (q *Queue) SetPlayingSong(song api.Song) {
 
 func (q *Queue) PlayPause() {
 	q.isPlaying = !q.isPlaying
+}
+
+func (q *Queue) AddManyToQueue(songs []api.Song) {
+	q.Clear()
+	for _, song := range songs {
+		q.AddToQueue(song)
+	}
 }
