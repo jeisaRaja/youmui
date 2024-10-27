@@ -171,3 +171,29 @@ func GetSongsFromPlaylist(db *sql.DB, pid int64) ([]api.Song, error) {
 
 	return songs, nil
 }
+
+func GetSongs(db *sql.DB) ([]api.Song, error) {
+	rows, err := db.Query(`
+    SELECT title, url FROM songs LIMIT 10;
+    `)
+	if err != nil {
+		return nil, fmt.Errorf("[ERROR] failed to query GetSongs: %w", err)
+	}
+	defer rows.Close()
+
+	var songs []api.Song
+	for rows.Next() {
+		var song api.Song
+		err := rows.Scan(&song.Title, &song.URL)
+		if err != nil {
+			return nil, fmt.Errorf("[ERROR] failed to scan song: %w", err)
+		}
+		songs = append(songs, song)
+	}
+
+	if rows.Err() != nil {
+		return nil, fmt.Errorf("[ERROR] error while in iteration: %w", err)
+	}
+
+	return songs, nil
+}

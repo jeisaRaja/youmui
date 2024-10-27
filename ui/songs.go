@@ -1,18 +1,27 @@
 package ui
 
 import (
+	"database/sql"
+	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jeisaraja/youmui/api"
+	"github.com/jeisaraja/youmui/storage"
 )
 
 type SongList struct {
 	Songs      []api.Song
 	hoverIndex int
+	db         *sql.DB
 }
 
-func NewSongList(songs []api.Song) *SongList {
+func NewSongList(db *sql.DB) *SongList {
 	var songComponents []*SongComponent
+	songs, err := storage.GetSongs(db)
+	if err != nil {
+		panic(fmt.Errorf("[ERROR] while calling storage.GetSongs from NewSongList: %w", err))
+	}
 	for _, song := range songs {
 		songComponents = append(songComponents, NewSong(song))
 	}
@@ -27,16 +36,28 @@ func (sl *SongList) Init() tea.Cmd {
 }
 
 func (sl *SongList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
+	switch keyMsg := msg.(type) {
 	case tea.KeyMsg:
-		if (msg.String() == "down" || msg.String() == "j") && sl.hoverIndex < len(sl.Songs)-1 {
-			sl.hoverIndex++
-		} else if (msg.String() == "up" || msg.String() == "k") && sl.hoverIndex > 0 {
-			sl.hoverIndex--
-		}
-		switch msg.String() {
+		key := keyMsg.String()
+
+		switch key {
+		case "down", "j":
+			if sl.hoverIndex < len(sl.Songs)-1 {
+				sl.hoverIndex++
+			}
+		case "up", "k":
+			if sl.hoverIndex > 0 {
+				sl.hoverIndex--
+			}
 		case "enter":
-			return sl, sl.ForcePlaySong()
+			return sl, sl.PlaySelectedSong()
+		case "a":
+			return sl, sl.AddToQueue()
+		case "i":
+			song := sl.GetSelectedSong()
+			if song != nil {
+				return sl, sl.ShowPlaylistOptions()
+			}
 		}
 	}
 
@@ -73,7 +94,7 @@ type PlaySongMsg struct {
 	Song api.Song
 }
 
-func (sl *SongList) ForcePlaySong() tea.Cmd {
+func (sl *SongList) PlaySelectedSong() tea.Cmd {
 	if len(sl.Songs) == 0 {
 		return nil
 	}
@@ -100,4 +121,12 @@ func (s *SongList) GetSelectedSong() *api.Song {
 		return nil
 	}
 	return &s.Songs[s.hoverIndex]
+}
+
+type ShowPlaylistOptions struct{}
+
+func (sl *SongList) ShowPlaylistOptions() tea.Cmd {
+	return func() tea.Msg {
+		return ShowPlaylistOptions{}
+	}
 }

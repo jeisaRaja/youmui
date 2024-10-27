@@ -29,7 +29,7 @@ type PlaylistComponent struct {
 type InputStateMsg struct{}
 
 func NewPlaylistComponent(db *sql.DB) *PlaylistComponent {
-	return &PlaylistComponent{db: db, isOpen: false, openPlaylist: NewSongList(nil)}
+	return &PlaylistComponent{db: db, isOpen: false, openPlaylist: NewSongList(db)}
 }
 
 func (p *PlaylistComponent) Init() tea.Cmd {
@@ -37,17 +37,23 @@ func (p *PlaylistComponent) Init() tea.Cmd {
 }
 
 func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if p.isOpen {
-		_, cmd := p.openPlaylist.Update(msg)
-		return p, cmd
-	}
 
 	switch msg := msg.(type) {
-	case SongsFetch:
+	case SongsFromPlaylist:
 		p.openPlaylist.UpdateSongs(msg.songs)
 		p.isOpen = true
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "esc":
+			p.isOpen = false
+			return p, nil
+		case "a":
+			if !p.isOpen {
+				return p, PlayPlaylistCallback(p.db, p.GetCurrent())
+			} else {
+				_, cmd := p.openPlaylist.Update(msg)
+				return p, cmd
+			}
 		case "enter":
 			if !p.isOpen {
 				return p, GetAllSongsFromPlaylist(p.db, p.playlists[p.cur].ID)
@@ -67,6 +73,10 @@ func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if p.cur > 0 {
 				p.cur--
+			}
+		default:
+			if p.isOpen {
+				p.openPlaylist.Update(msg)
 			}
 		}
 	}
@@ -124,7 +134,7 @@ func (p *PlaylistComponent) GetCurrent() int64 {
 	return 0
 }
 
-type SongsFetch struct {
+type SongsFromPlaylist struct {
 	songs []api.Song
 }
 
@@ -134,6 +144,6 @@ func GetAllSongsFromPlaylist(db *sql.DB, pid int64) tea.Cmd {
 		if err != nil {
 			panic("error when getting songs from playlist")
 		}
-		return SongsFetch{songs}
+		return SongsFromPlaylist{songs}
 	}
 }
