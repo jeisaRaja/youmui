@@ -11,12 +11,15 @@ import (
 	"github.com/jeisaraja/youmui/api"
 	"github.com/jeisaraja/youmui/storage"
 	"github.com/jeisaraja/youmui/stream"
-	"github.com/jeisaraja/youmui/ui/components"
 )
+
+type ContentModel interface {
+	tea.Model
+}
 
 type Tab struct {
 	name string
-	item components.ContentModel
+	item ContentModel
 }
 
 type ModelState int
@@ -41,19 +44,19 @@ type model struct {
 	tabs             []Tab
 	state            ModelState
 	client           *http.Client
-	input            components.TextInput
+	input            TextInput
 	inputHeader      string
 	loading          bool
 	spinner          spinner.Model
-	queue            *components.Queue
+	queue            *Queue
 	hasActiveSong    bool
 	height           int
 	width            int
 	player           *stream.Player
 	store            *sql.DB
 	isSelectPlaylist bool
-	selectPlaylist   *components.SelectPlaylist
-	playlistTab      *components.PlaylistComponent
+	selectPlaylist   *SelectPlaylist
+	playlistTab      *PlaylistComponent
 }
 
 func NewModel(client *http.Client, db *sql.DB) *model {
@@ -61,24 +64,24 @@ func NewModel(client *http.Client, db *sql.DB) *model {
 	s := spinner.New()
 	s.Spinner = spinner.Line
 	s.Style = spinnerStyle
-	SongTab = Tab{name: "Song", item: components.NewSongList([]api.Song{})}
-	queueItem := components.NewQueue()
+	SongTab = Tab{name: "Song", item: NewSongList([]api.Song{})}
+	queueItem := NewQueue()
 	QueueTab = Tab{name: "Queue", item: queueItem}
 
 	ps, _ := storage.GetPlaylists(db)
-	playlistComp := components.NewPlaylistComponent(db)
+	playlistComp := NewPlaylistComponent(db)
 	playlistComp.SetPlaylists(ps)
 	PlaylistTab = Tab{name: "Playlist", item: playlistComp}
 
 	tabs := []Tab{SongTab, PlaylistTab, QueueTab}
 
-	sp := components.NewSelectPlaylist(ps)
+	sp := NewSelectPlaylist(ps)
 	return &model{
 		activeTab:        SongTab,
 		tabs:             tabs,
 		state:            IdleMode,
 		client:           client,
-		input:            *components.NewTextInputView(50, 50),
+		input:            *NewTextInputView(50, 50),
 		loading:          false,
 		spinner:          s,
 		queue:            queueItem,
@@ -114,7 +117,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case components.SongsFetch:
+	case SongsFetch:
 		_, cmd := m.playlistTab.Update(msg)
 		return m, cmd
 	case PlaybackError:
@@ -128,12 +131,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selectPlaylist.AppendPlaylist(msg.Title, msg.ID, msg.Count)
 		m.playlistTab.AppendPlaylist(msg.Title, msg.ID, msg.Count)
 		m.loading = false
-	case components.InputStateMsg:
+	case InputStateMsg:
 		m.state = InputMode
 	case tea.WindowSizeMsg:
 		m.width = msg.Height
 		m.height = msg.Height
-	case components.PlaySongMsg:
+	case PlaySongMsg:
 		return m, m.PlaySelectedSong(msg.Song)
 	case PlaybackFinished:
 		return m, m.handlePlaybackFinished()
@@ -209,11 +212,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = InputMode
 			}
 			if m.activeTab == PlaylistTab {
-				m.input.SetUsage(components.SearchPlaylist)
+				m.input.SetUsage(SearchPlaylist)
 				m.inputHeader = "Search for playlist"
 			} else {
 				m.inputHeader = "Search for song"
-				m.input.SetUsage(components.SearchSong)
+				m.input.SetUsage(SearchSong)
 			}
 			m.input.SetPlaceholder(fmt.Sprintf("%s title", m.activeTab.name))
 		case "c":
@@ -221,7 +224,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = InputMode
 			}
 			m.inputHeader = "Create a new playlist"
-			m.input.SetUsage(components.CreatePlaylist)
+			m.input.SetUsage(CreatePlaylist)
 			m.input.SetPlaceholder("Playlist title")
 			m.isSelectPlaylist = false
 		case "esc":
@@ -291,7 +294,7 @@ func (m *model) loadSongsAsync() tea.Cmd {
 			return SongListMsg{Songs: nil}
 		}
 
-		if songlist, ok := m.ActiveTab().item.(*components.SongList); ok {
+		if songlist, ok := m.ActiveTab().item.(*SongList); ok {
 			songlist.UpdateSongs(songs)
 		}
 
@@ -355,7 +358,7 @@ func (m *model) handlePlaybackFinished() tea.Cmd {
 
 func (m *model) handleSongListMsg(msg SongListMsg) tea.Cmd {
 	m.loading = false
-	if songList, ok := m.activeTab.item.(*components.SongList); ok {
+	if songList, ok := m.activeTab.item.(*SongList); ok {
 		songList.UpdateSongs(msg.Songs)
 	}
 	m.state = IdleMode
@@ -368,14 +371,14 @@ func (m *model) handleEnterKey(msg tea.KeyMsg) tea.Cmd {
 		m.input.Input.SetValue("")
 		m.loading = true
 		switch m.input.Usage {
-		case components.SearchSong:
+		case SearchSong:
 			return SearchSongCallback(inputValue)
-		case components.CreatePlaylist:
+		case CreatePlaylist:
 			return CreatePlaylistCallback(m.store, inputValue)
 		}
 	}
 
-	if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
+	if songList, ok := m.ActiveTab().item.(*SongList); ok {
 		if m.isSelectPlaylist {
 			m.isSelectPlaylist = false
 			cmd := AddSongToPlaylistCallback(m.store, m.selectPlaylist.GetSelectedPlaylist(), *songList.GetSelectedSong())
@@ -385,7 +388,7 @@ func (m *model) handleEnterKey(msg tea.KeyMsg) tea.Cmd {
 		return cmd
 	}
 
-	if playlist, ok := m.ActiveTab().item.(*components.PlaylistComponent); ok {
+	if playlist, ok := m.ActiveTab().item.(*PlaylistComponent); ok {
 		_, cmd := playlist.Update(msg)
 		return cmd
 	}
@@ -394,7 +397,7 @@ func (m *model) handleEnterKey(msg tea.KeyMsg) tea.Cmd {
 }
 
 func (m *model) handleAddToQueue() (*model, tea.Cmd) {
-	if songList, ok := m.ActiveTab().item.(*components.SongList); ok {
+	if songList, ok := m.ActiveTab().item.(*SongList); ok {
 		selectedSong := songList.GetSelectedSong()
 		if selectedSong == nil {
 			return m, nil
@@ -418,7 +421,7 @@ func (m *model) handleAddToPlaylist() tea.Cmd {
 		return nil
 	}
 	switch tab := m.activeTab.item.(type) {
-	case *components.SongList:
+	case *SongList:
 		if tab.GetSelectedSong() == nil {
 			m.isSelectPlaylist = false
 			return nil
