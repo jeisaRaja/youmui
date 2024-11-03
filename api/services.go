@@ -15,12 +15,12 @@ import (
 )
 
 type Song struct {
-	DbID        int64
-	ID          string
-	Title       string
-	Description string
-	ChannelID   string
-	URL         string
+	DbID        int64  `json:"-"`
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	ChannelID   string `json:"channel_id"`
+	URL         string `json:"url"`
 }
 
 var apikey = os.Getenv("YOUTUBE_API_KEY")
