@@ -1,31 +1,35 @@
 package main
 
 import (
-	// "flag"
-	// "fmt"
-	// "log"
-	//
-	// "github.com/jeisaraja/youmui/api"
-	// "github.com/jeisaraja/youmui/stream"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/jeisaraja/youmui/storage"
 	"github.com/jeisaraja/youmui/ui"
 )
 
 func main() {
-	// keyword := flag.String("s", "rick roll", "search for a song")
-	// flag.Parse()
-	// client := api.NewClient()
-	// result, err := api.SearchWithKeyword(client, *keyword, 5)
-	// if err != nil {
-	// 	log.Fatalf("Error getting the songUrl")
-	// }
-	//
-	// videoID := result.Items[0].ID.VideoID
-	// videoUrl := "https://youtube.com/watch?v=" + videoID
-	//
-	// fmt.Println(videoUrl)
-	//
-	// if err := stream.FetchAndPlayAudio(videoUrl); err != nil {
-	// 	log.Fatalf("Error fetching and playing audio: %v", err)
-	// }
-	ui.Start()
+	dbPath, err := getDBPath()
+	if err != nil {
+		panic("error when trying to get the db path")
+	}
+	db, err := storage.ConnectDB(*dbPath)
+	if err != nil {
+		panic("err when trying to connect the database")
+	}
+	ui.Start(db)
+}
+
+func getDBPath() (*string, error) {
+	var dbPath string
+	var customPath = "/.local/share/youmui/youmui.db"
+	dirName, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get user home directory: %w", err)
+	}
+
+	dbPath = filepath.Join(dirName, customPath)
+
+	return &dbPath, nil
 }
