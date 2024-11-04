@@ -8,17 +8,19 @@ import (
 
 func TestFetchPlaylist(t *testing.T) {
 	var examplePlaylist = "https://music.youtube.com/playlist?list=PLfsJhwuMhRrB71-Ad-kuiY3HkiYqoTlo_&si=lrVlA7zaWnzLjchm"
-	songs, err := fetchPlaylist(examplePlaylist, YOUTUBE)
+	title, _, err := fetchPlaylist(examplePlaylist, YOUTUBE)
 	if err != nil {
 		t.Fatalf("error when fetching playlist: %v", err)
 	}
-	fmt.Printf("%#v", songs)
+	if title == nil {
+		t.Fatalf("error when fetching playlist: %v", err)
+	}
 }
 
 func TestParsePlaylist(t *testing.T) {
-	mockOutput := ` {"title": "Song One", "url": "link1"}
-                  {"title": "Song Two", "url": "link2"}
-                  {"title": "Song Three", "url": "link3"}`
+	mockOutput := ` {"title": "Song One", "url": "link1", "playlist_title": "cool songs"}
+                  {"title": "Song Two", "url": "link2", "playlist_title": "cool songs"}
+                  {"title": "Song Three", "url": "link3", "playlist_title": "cool songs"}`
 
 	expectedSongs := []Song{
 		{Title: "Song One", URL: "link1"},
@@ -26,10 +28,16 @@ func TestParsePlaylist(t *testing.T) {
 		{Title: "Song Three", URL: "link3"},
 	}
 
-	outSongs, err := parsePlaylist(mockOutput)
+	title, outSongs, err := parsePlaylist(mockOutput)
 	if err != nil {
 		t.Fatalf("failed to parse the playlist string: %v", err)
 	}
+
+	if title == nil {
+		t.Fatalf("failed to get the playlist title: %v", err)
+	}
+
+	fmt.Printf("Playlist title: %s\n", *title)
 
 	for i := range expectedSongs {
 		if !reflect.DeepEqual(expectedSongs[i], outSongs[i]) {
