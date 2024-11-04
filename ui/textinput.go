@@ -12,6 +12,7 @@ const (
 	SearchSong = iota
 	SearchPlaylist
 	CreatePlaylist
+	ImportPlaylist
 )
 
 type TextInput struct {

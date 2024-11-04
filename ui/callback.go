@@ -9,6 +9,10 @@ import (
 	"github.com/jeisaraja/youmui/storage"
 )
 
+type ErrorMsg struct {
+	Error error
+}
+
 type SongListMsg struct {
 	Songs []api.Song
 }
@@ -33,7 +37,7 @@ func CreatePlaylistCallback(db *sql.DB, input string) tea.Cmd {
 	return func() tea.Msg {
 		res, err := storage.AddPlaylist(db, input)
 		if err != nil {
-			panic(err)
+			return ErrorMsg{Error: err}
 		}
 		return CreatePlaylistMsg{
 			Title: input,
@@ -52,7 +56,7 @@ func AddSongToPlaylistCallback(db *sql.DB, playlist int64, song api.Song) tea.Cm
 	return func() tea.Msg {
 		err := storage.AddSongToPlaylist(db, playlist, song)
 		if err != nil {
-			panic(fmt.Errorf("error when adding a song to a playlist: %w", err))
+			return ErrorMsg{Error: err}
 		}
 		return SongAddedToPlaylistMsg{
 			PlaylistID: playlist,
@@ -69,7 +73,7 @@ func PlayPlaylistCallback(db *sql.DB, pid int64) tea.Cmd {
 	return func() tea.Msg {
 		songs, err := storage.GetSongsFromPlaylist(db, pid)
 		if err != nil {
-			panic(fmt.Errorf("error when getting songs from playlist: %w", err))
+			return ErrorMsg{Error: err}
 		}
 		return PlayPlaylistMsg{Songs: songs}
 	}
@@ -112,5 +116,35 @@ func GetPlaylists(db *sql.DB) tea.Cmd {
 		}
 
 		return data
+	}
+}
+
+func ImportPlaylistIntoDB(db *sql.DB, url string) tea.Cmd {
+	return func() tea.Msg {
+		title, songs, err := api.FetchPlaylist(url, api.YOUTUBE)
+		if err != nil {
+			return ErrorMsg{Error: fmt.Errorf("[ERROR] while calling api.FetchPlaylist: %v", err)}
+		}
+		if title == nil {
+			return ErrorMsg{Error: fmt.Errorf("[ERROR] playlist title is nil")}
+		}
+
+		res, err := storage.AddPlaylist(db, *title)
+		if err != nil {
+			return ErrorMsg{Error: fmt.Errorf("[ERROR] while calling storage.AddPlaylist: %v", err)}
+		}
+
+		for _, song := range songs {
+			err := storage.AddSongToPlaylist(db, *res, song)
+			if err != nil {
+				return ErrorMsg{Error: fmt.Errorf("[ERROR] while calling storage.AddSongToPlaylist: %v", err)}
+			}
+		}
+
+		return CreatePlaylistMsg{
+			Title: *title,
+			ID:    *res,
+			Count: int64(len(songs)),
+		}
 	}
 }

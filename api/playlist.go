@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"strings"
 )
@@ -16,19 +17,22 @@ const (
 
 // Uses yt-dlp’s flat-playlist mode to efficiently gather minimal metadata from YouTube playlists,
 // trading detailed info for speed and low resource use, as only basic song data is needed.
-func fetchPlaylist(url string, source SourceType) (*string, []Song, error) {
-	var output []byte
-	var err error
+func FetchPlaylist(url string, source SourceType) (*string, []Song, error) {
 	if source == YOUTUBE {
-		cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", url)
-		output, err = cmd.Output()
-		fmt.Println(string(output))
+		ytUrl, err := convertToYoutubeURL(url)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, fmt.Errorf("[ERROR] failed to convert url to std youtube url")
 		}
+		cmd := exec.Command("yt-dlp", "-j", "--flat-playlist", "--compat-options", "no-youtube-unavailable-videos", ytUrl)
+		output, err := cmd.Output()
+		if err != nil {
+			return nil, nil, fmt.Errorf("[error] from FetchPlaylist: %v", err)
+		}
+		return parsePlaylist(string(output))
+
 	}
 
-	return parsePlaylist(string(output))
+	return nil, nil, nil
 }
 
 func parsePlaylist(output string) (*string, []Song, error) {
@@ -59,4 +63,19 @@ func parsePlaylist(output string) (*string, []Song, error) {
 	}
 
 	return &titleData.PlaylistTitle, songs, nil
+}
+
+func convertToYoutubeURL(musicURL string) (string, error) {
+	parsedURL, err := url.Parse(musicURL)
+	if err != nil {
+		return "", fmt.Errorf("[ERROR] parsing URL: %w", err)
+	}
+
+	playlistID := parsedURL.Query().Get("list")
+	if playlistID == "" {
+		return "", fmt.Errorf("[ERROR] no playlist ID found in URL")
+	}
+
+	youtubeURL := fmt.Sprintf("https://www.youtube.com/playlist?list=%s", playlistID)
+	return youtubeURL, nil
 }

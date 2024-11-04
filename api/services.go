@@ -155,7 +155,7 @@ func SearchWithKeyword(client HTTPClient, keyword string, limit int) ([]Song, er
 	file, err := tea.LogToFile("debug.log", "log:\n")
 	defer file.Close()
 	if err != nil {
-		panic("err while opening debug.log")
+		return nil, err
 	}
 	req, err := http.NewRequest("GET", endpoint, nil)
 	if err != nil {
@@ -213,7 +213,7 @@ func SearchWithKeywordWithoutApi(keyword string) ([]Song, error) {
 
 	out, err := cmd.Output()
 	if err != nil {
-		panic("search with keyword without api failed")
+		return nil, err
 	}
 
 	stringOut := string(out)

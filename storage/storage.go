@@ -143,7 +143,7 @@ func AddSongToPlaylist(db *sql.DB, playlistID int64, song api.Song) error {
 
 	err = tx.Commit()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to commit transactions")
 	}
 
 	return nil

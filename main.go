@@ -16,7 +16,7 @@ func main() {
 	}
 	db, err := storage.ConnectDB(*dbPath)
 	if err != nil {
-		panic("err when trying to connect the database")
+		panic("[ERROR] when trying to connect the database")
 	}
 	ui.Start(db)
 }

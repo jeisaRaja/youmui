@@ -7,13 +7,13 @@ import (
 )
 
 func TestFetchPlaylist(t *testing.T) {
-	var examplePlaylist = "https://music.youtube.com/playlist?list=PLfsJhwuMhRrB71-Ad-kuiY3HkiYqoTlo_&si=lrVlA7zaWnzLjchm"
-	title, _, err := fetchPlaylist(examplePlaylist, YOUTUBE)
+	var examplePlaylist = "https://www.youtube.com/playlist?list=PLfsJhwuMhRrCrHtLGCQhUvUqu4zRqNwbr"
+	title, _, err := FetchPlaylist(examplePlaylist, YOUTUBE)
 	if err != nil {
 		t.Fatalf("error when fetching playlist: %v", err)
 	}
 	if title == nil {
-		t.Fatalf("error when fetching playlist: %v", err)
+		t.Fatalf("title is nil")
 	}
 }
 
@@ -44,4 +44,18 @@ func TestParsePlaylist(t *testing.T) {
 			t.Fatalf("song and expected song are different: expected %v, got %v", expectedSongs[i], outSongs[i])
 		}
 	}
+}
+
+func TestConvertToYoutubeUrl(t *testing.T) {
+	musicURL := "https://music.youtube.com/playlist?list=PLfsJhwuMhRrCrHtLGCQhUvUqu4zRqNwbr"
+	expectedURL := "https://www.youtube.com/playlist?list=PLfsJhwuMhRrCrHtLGCQhUvUqu4zRqNwbr"
+
+	res, err := convertToYoutubeURL(musicURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != expectedURL {
+		t.Fatal("result url is difference compared to expected url")
+	}
+	fmt.Println(res)
 }

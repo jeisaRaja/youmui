@@ -57,6 +57,7 @@ type model struct {
 	isSelectPlaylist bool
 	selectPlaylist   *SelectPlaylist
 	playlistTab      *PlaylistComponent
+	Error            error
 }
 
 func NewModel(client *http.Client, db *sql.DB) *model {
@@ -84,7 +85,7 @@ func NewModel(client *http.Client, db *sql.DB) *model {
 		tabs:             tabs,
 		state:            IdleMode,
 		client:           client,
-		input:            *NewTextInputView(50, 50),
+		input:            *NewTextInputView(200, 50),
 		loading:          false,
 		spinner:          s,
 		queue:            queueItem,
@@ -119,6 +120,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case ErrorMsg:
+		m.Error = msg.Error
 	case PlaylistsData:
 		_, cmd := m.playlistTab.Update(msg)
 		cmds = append(cmds, cmd)
@@ -232,6 +235,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.input.SetUsage(CreatePlaylist)
 			m.input.SetPlaceholder("Playlist title")
 			m.isSelectPlaylist = false
+		case "I":
+			m.state = InputMode
+			m.inputHeader = "Import Playlist"
+			m.input.SetUsage(ImportPlaylist)
+			m.input.SetPlaceholder("Playlist url")
 		case "ctrl+c":
 			return m, tea.Quit
 		default:
@@ -276,6 +284,9 @@ func (m *model) View() string {
 	}
 
 	queueStyled := queueTabStyle.Height(m.height).Render(m.queue.View())
+	if m.Error!= nil {
+		return m.Error.Error()
+	}
 	return lipgloss.JoinHorizontal(lipgloss.Left, tabs, tabContent, queueStyled)
 }
 
@@ -341,6 +352,8 @@ func (m *model) handleEnterKey(msg tea.KeyMsg) tea.Cmd {
 			return SearchSongCallback(inputValue)
 		case CreatePlaylist:
 			return CreatePlaylistCallback(m.store, inputValue)
+		case ImportPlaylist:
+			return ImportPlaylistIntoDB(m.store, inputValue)
 		}
 	}
 

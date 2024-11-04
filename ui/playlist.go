@@ -48,6 +48,10 @@ func (p *PlaylistComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			p.isOpen = false
 			return p, nil
+		case "i":
+			if !p.isOpen {
+
+			}
 		case "a":
 			if !p.isOpen {
 				return p, PlayPlaylistCallback(p.db, p.GetCurrent())
@@ -153,7 +157,7 @@ func GetAllSongsFromPlaylist(db *sql.DB, pid int64) tea.Cmd {
 	return func() tea.Msg {
 		songs, err := storage.GetSongsFromPlaylist(db, pid)
 		if err != nil {
-			panic("error when getting songs from playlist")
+			return ErrorMsg{Error: err}
 		}
 		return SongsFromPlaylist{songs}
 	}
